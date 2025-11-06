@@ -1,0 +1,346 @@
+/* Parser.cup */
+
+/* ====================== Bloque parser code ====================== */
+parser code {:
+  import java.util.ArrayList;
+  import java.util.List;
+  import compilerTools.ErrorLSSL;
+  import compilerTools.Token;
+  import compilerTools.ASTNode;
+  import java_cup.runtime.*;
+  public List<ErrorLSSL> errors = new ArrayList<>();
+:}
+
+/* ====================== 1) DECLARACIÓN DE TERMINALES ====================== */
+
+terminal PLUS, MINUS, MUL, DIV, POWER, ERROR;
+terminal SQRT, SIN, PI;
+terminal FLOAT_LITERAL, INTEGER_LITERAL;
+terminal IDENTIFIER;
+terminal LEFT_PAREN, RIGHT_PAREN;
+terminal LBRACE, RBRACE;
+terminal ASSIGNMENT, COMMA, SEMICOLON;
+terminal GT, LT, GE, LE, EQ, NE;
+terminal IF, ELSE, FOR;
+
+/* ====================== 2) DECLARACIÓN DE NO TERMINALES ====================== */
+
+non terminal ASTNode Program, Statement, Expression, Term, Factor;
+non terminal ASTNode IfStatement, ForStatement, Block, StatementList;
+non terminal ASTNode RelationalExpression;
+non terminal ASTNode SimpleStatement, ControlStatement;
+
+/* ====================== 3) SÍMBOLO INICIAL ====================== */
+
+start with Program;
+
+/* ====================== 4) PRODUCCIONES ====================== */
+
+Program ::=
+      /* empty */
+      {: RESULT = new ASTNode("Program"); :}
+    | Program Statement SEMICOLON
+      {:
+         Symbol prog = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
+         Symbol stmt = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 1);
+         ASTNode node = (ASTNode) prog.value;
+         node.addChild((ASTNode) stmt.value);
+         RESULT = node;
+      :}
+    | Program Statement
+      {:
+         Symbol prog = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 1);
+         Symbol stmt = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         ASTNode node = (ASTNode) prog.value;
+         node.addChild((ASTNode) stmt.value);
+         RESULT = node;
+      :}
+    ;
+
+Statement ::=
+      IDENTIFIER ASSIGNMENT Expression
+      {:
+         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
+         Symbol sym3 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         Token idToken = (Token) sym1.value;
+         ASTNode assign = new ASTNode("Assign");
+         assign.addChild(new ASTNode("ID: " + idToken.getLexeme()));
+         assign.addChild((ASTNode) sym3.value);
+         RESULT = assign;
+      :}
+    | IfStatement
+      {:
+         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         RESULT = (ASTNode) sym1.value;
+      :}
+    | ForStatement
+      {:
+         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         RESULT = (ASTNode) sym1.value;
+      :}
+    | Expression
+      {:
+         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         RESULT = (ASTNode) sym1.value;
+      :}
+    /* Errores sintácticos en Statement */
+    | error ASSIGNMENT Expression
+      {:
+         errors.add(new ErrorLSSL(0, 0, "Error sintáctico: falta identificador antes de '='."));
+         RESULT = new ASTNode("Error");
+      :}
+    | IDENTIFIER ASSIGNMENT error
+      {:
+         errors.add(new ErrorLSSL(0, 0, "Error sintáctico: falta expresión después de '='."));
+         RESULT = new ASTNode("Error");
+      :}
+    ;
+
+/* IF-ELSE */
+IfStatement ::=
+      IF LEFT_PAREN RelationalExpression RIGHT_PAREN Block
+      {:
+         Symbol cond = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
+         Symbol block = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         ASTNode node = new ASTNode("If");
+         node.addChild((ASTNode) cond.value);
+         node.addChild((ASTNode) block.value);
+         RESULT = node;
+      :}
+    | IF LEFT_PAREN RelationalExpression RIGHT_PAREN Block ELSE Block
+      {:
+         Symbol cond = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 4);
+         Symbol ifBlock = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
+         Symbol elseBlock = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         ASTNode node = new ASTNode("IfElse");
+         node.addChild((ASTNode) cond.value);
+         node.addChild((ASTNode) ifBlock.value);
+         node.addChild((ASTNode) elseBlock.value);
+         RESULT = node;
+      :}
+  ;
+
+/* FOR */
+ForStatement ::=
+      FOR LEFT_PAREN Statement SEMICOLON RelationalExpression SEMICOLON Statement RIGHT_PAREN Block
+      {:
+         Symbol init = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 6);
+         Symbol cond = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 4);
+         Symbol update = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
+         Symbol block = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         ASTNode node = new ASTNode("For");
+         node.addChild((ASTNode) init.value);
+         node.addChild((ASTNode) cond.value);
+         node.addChild((ASTNode) update.value);
+         node.addChild((ASTNode) block.value);
+         RESULT = node;
+      :}
+  ;
+
+/* RELATIONAL EXPRESSIONS */
+RelationalExpression ::=
+      Expression GT Expression
+      {:
+         ASTNode node = new ASTNode(">");
+         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2)).value);
+         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).peek()).value);
+         RESULT = node;
+      :}
+    | Expression LT Expression
+      {:
+         ASTNode node = new ASTNode("<");
+         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2)).value);
+         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).peek()).value);
+         RESULT = node;
+      :}
+    | Expression GE Expression
+      {:
+         ASTNode node = new ASTNode(">=");
+         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2)).value);
+         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).peek()).value);
+         RESULT = node;
+      :}
+    | Expression LE Expression
+      {:
+         ASTNode node = new ASTNode("<=");
+         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2)).value);
+         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).peek()).value);
+         RESULT = node;
+      :}
+    | Expression EQ Expression
+      {:
+         ASTNode node = new ASTNode("==");
+         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2)).value);
+         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).peek()).value);
+         RESULT = node;
+      :}
+    | Expression NE Expression
+      {:
+         ASTNode node = new ASTNode("!=");
+         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2)).value);
+         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).peek()).value);
+         RESULT = node;
+      :}
+    | Expression
+      {:
+         RESULT = (ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).peek()).value;
+      :}
+    ;
+
+Block ::=
+      LBRACE StatementList RBRACE
+      {:
+         Symbol stmts = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 1);
+         ASTNode node = new ASTNode("Block");
+         node.addChild((ASTNode) stmts.value);
+         RESULT = node;
+      :}
+    ;
+
+StatementList ::=
+      /* empty */
+      {: RESULT = new ASTNode("Statements"); :}
+    | StatementList SimpleStatement SEMICOLON
+      {:
+         Symbol stmts = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
+         Symbol stmt = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 1);
+         ASTNode node = (ASTNode) stmts.value;
+         node.addChild((ASTNode) stmt.value);
+         RESULT = node;
+      :}
+    | StatementList ControlStatement
+      {:
+         Symbol stmts = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 1);
+         Symbol stmt = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         ASTNode node = (ASTNode) stmts.value;
+         node.addChild((ASTNode) stmt.value);
+         RESULT = node;
+      :}
+    ;
+
+SimpleStatement ::=
+      IDENTIFIER ASSIGNMENT Expression
+      {:
+         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
+         Symbol sym3 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         Token idToken = (Token) sym1.value;
+         ASTNode assign = new ASTNode("Assign");
+         assign.addChild(new ASTNode("ID: " + idToken.getLexeme()));
+         assign.addChild((ASTNode) sym3.value);
+         RESULT = assign;
+      :}
+    | Expression
+      {:
+         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         RESULT = (ASTNode) sym1.value;
+      :}
+    /* Errores sintácticos en SimpleStatement */
+    | error ASSIGNMENT Expression
+      {:
+         errors.add(new ErrorLSSL(0, 0, "Error sintáctico: falta identificador antes de '='."));
+         RESULT = new ASTNode("Error");
+      :}
+    | IDENTIFIER ASSIGNMENT error
+      {:
+         errors.add(new ErrorLSSL(0, 0, "Error sintáctico: falta expresión después de '='."));
+         RESULT = new ASTNode("Error");
+      :}
+    ;
+
+
+/* EXPRESIONES Y FACTORES */
+Expression ::=
+      Expression PLUS Term
+      {:
+         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
+         Symbol sym3 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         ASTNode node = new ASTNode("+");
+         node.addChild((ASTNode) sym1.value);
+         node.addChild((ASTNode) sym3.value);
+         RESULT = node;
+      :}
+    | Expression MINUS Term
+      {:
+         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
+         Symbol sym3 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         ASTNode node = new ASTNode("-");
+         node.addChild((ASTNode) sym1.value);
+         node.addChild((ASTNode) sym3.value);
+         RESULT = node;
+      :}
+    | Term
+      {:
+         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         RESULT = (ASTNode) sym1.value;
+      :}
+    ;
+
+Term ::=
+      Term MUL Factor
+      {:
+         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
+         Symbol sym3 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         ASTNode node = new ASTNode("*");
+         node.addChild((ASTNode) sym1.value);
+         node.addChild((ASTNode) sym3.value);
+         RESULT = node;
+      :}
+    | Term DIV Factor
+      {:
+         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
+         Symbol sym3 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         ASTNode node = new ASTNode("/");
+         node.addChild((ASTNode) sym1.value);
+         node.addChild((ASTNode) sym3.value);
+         RESULT = node;
+      :}
+    | Factor
+      {:
+         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         RESULT = (ASTNode) sym1.value;
+      :}
+    ;
+
+Factor ::=
+      FLOAT_LITERAL
+      {:
+         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         Token tok = (Token) sym1.value;
+         RESULT = new ASTNode("Float: " + tok.getLexeme());
+      :}
+    | INTEGER_LITERAL
+      {:
+         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         Token tok = (Token) sym1.value;
+         RESULT = new ASTNode("Int: " + tok.getLexeme());
+      :}
+    | IDENTIFIER
+      {:
+         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
+         Token tok = (Token) sym1.value;
+         RESULT = new ASTNode("ID: " + tok.getLexeme());
+      :}
+    | SQRT LEFT_PAREN Expression RIGHT_PAREN
+      {:
+         Symbol sym3 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
+         ASTNode node = new ASTNode("SQRT");
+         node.addChild((ASTNode) sym3.value);
+         RESULT = node;
+      :}
+    | SIN LEFT_PAREN Expression RIGHT_PAREN
+      {:
+         Symbol sym3 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
+         ASTNode node = new ASTNode("SIN");
+         node.addChild((ASTNode) sym3.value);
+         RESULT = node;
+      :}
+    | LEFT_PAREN Expression RIGHT_PAREN
+      {:
+         Symbol sym2 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 1);
+         RESULT = (ASTNode) sym2.value;
+      :}
+    | PI
+      {:
+         RESULT = new ASTNode("PI");
+      :}
+    ;
