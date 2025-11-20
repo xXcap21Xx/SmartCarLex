@@ -29,3 +29,9 @@ en el mismo Lexer.java, tenemos que modificar esta linea de codigo:
 por esto(Solo es borrar el ,java_cup.runtime.Scanner que esta de mas):
 
     public class Lexer implements java_cup.runtime.Scanner{
+
+Ahora, para poder moficar el Parser.cup y el sym.java debemos de poner este comando en la terminal de VSCode o de CMD
+    
+    java -jar java-cup-11b.jar -parser Parser -symbols sym c:LaRutaDondeTengasElProyecto\GitHub\SmartCarLex\src\Parser.cup
+
+y modificara/creara los archivos.java (Sym.java y Parser.java)
