@@ -6,67 +6,157 @@
 /** CUP generated class containing symbol constants. */
 public class sym {
   /* terminals */
-  public static final int NE = 26;
-  public static final int LT = 22;
-  public static final int ELSE = 28;
-  public static final int SEMICOLON = 20;
-  public static final int SIN = 9;
-  public static final int PLUS = 2;
-  public static final int RBRACE = 17;
-  public static final int LEFT_PAREN = 14;
-  public static final int IDENTIFIER = 13;
-  public static final int SQRT = 8;
-  public static final int ERROR = 7;
-  public static final int IF = 27;
-  public static final int GT = 21;
-  public static final int LBRACE = 16;
-  public static final int LE = 24;
-  public static final int COMMA = 19;
+  public static final int DESTINATION = 48;
+  public static final int BOOL = 11;
+  public static final int GT = 63;
+  public static final int CONST = 14;
+  public static final int SENSOR = 32;
+  public static final int GE = 52;
+  public static final int OBSTACLE = 36;
+  public static final int SEMI = 64;
+  public static final int BRAKE = 31;
+  public static final int RBRACK = 71;
+  public static final int VEHICLE_ID = 42;
+  public static final int COMMA = 65;
+  public static final int INICIO = 3;
+  public static final int RBRACE = 69;
+  public static final int RPAREN = 67;
+  public static final int MOVE = 24;
+  public static final int LBRACK = 70;
+  public static final int LT = 62;
+  public static final int METODO = 5;
+  public static final int LBRACE = 68;
+  public static final int BROADCAST = 37;
+  public static final int LPAREN = 66;
+  public static final int LOOP = 21;
+  public static final int NAVIGATE = 47;
+  public static final int FALSE = 17;
+  public static final int DECEL = 29;
+  public static final int NOT = 55;
+  public static final int STOP = 26;
+  public static final int CUANDO = 18;
+  public static final int LE = 51;
+  public static final int VAR = 13;
+  public static final int GOTO = 45;
+  public static final int STR = 12;
+  public static final int GPS = 33;
+  public static final int NUM = 10;
+  public static final int EQ = 49;
+  public static final int REVERSE = 30;
+  public static final int MUL = 58;
+  public static final int SALIR = 22;
+  public static final int MOD = 60;
+  public static final int NUMBER = 74;
+  public static final int TRUE = 16;
+  public static final int PLUS = 56;
+  public static final int ASSIGN = 61;
+  public static final int WAYPOINT = 44;
+  public static final int DIV = 59;
+  public static final int MAP = 46;
   public static final int EOF = 0;
-  public static final int DIV = 5;
-  public static final int PI = 10;
-  public static final int GE = 23;
-  public static final int MINUS = 3;
-  public static final int error = 1;
-  public static final int EQ = 25;
-  public static final int INTEGER_LITERAL = 12;
-  public static final int ASSIGNMENT = 18;
-  public static final int RIGHT_PAREN = 15;
-  public static final int FOR = 29;
-  public static final int FLOAT_LITERAL = 11;
-  public static final int MUL = 4;
-  public static final int POWER = 6;
+  public static final int MIENTRAS = 20;
+  public static final int RUTINA = 6;
+  public static final int MESSAGE = 39;
+  public static final int MINUS = 57;
+  public static final int SPEED = 34;
+  public static final int OR = 54;
+  public static final int SET = 15;
+  public static final int RECEIVE = 38;
+  public static final int ERROR = 1;
+  public static final int ON = 41;
+  public static final int ENTRADA = 7;
+  public static final int ID = 72;
+  public static final int ACCEL = 28;
+  public static final int SINO = 19;
+  public static final int TURN = 25;
+  public static final int END = 4;
+  public static final int DISTANCE = 35;
+  public static final int SIGUE = 23;
+  public static final int STRING = 73;
+  public static final int NEQ = 50;
+  public static final int PROGRAM = 2;
+  public static final int AND = 53;
+  public static final int WAIT = 27;
+  public static final int ROUTE = 43;
+  public static final int REGRESA = 9;
+  public static final int EVENT = 40;
+  public static final int SALIDA = 8;
   public static final String[] terminalNames = new String[] {
   "EOF",
   "error",
+  "PROGRAM",
+  "INICIO",
+  "END",
+  "METODO",
+  "RUTINA",
+  "ENTRADA",
+  "SALIDA",
+  "REGRESA",
+  "NUM",
+  "BOOL",
+  "STR",
+  "VAR",
+  "CONST",
+  "SET",
+  "TRUE",
+  "FALSE",
+  "CUANDO",
+  "SINO",
+  "MIENTRAS",
+  "LOOP",
+  "SALIR",
+  "SIGUE",
+  "MOVE",
+  "TURN",
+  "STOP",
+  "WAIT",
+  "ACCEL",
+  "DECEL",
+  "REVERSE",
+  "BRAKE",
+  "SENSOR",
+  "GPS",
+  "SPEED",
+  "DISTANCE",
+  "OBSTACLE",
+  "BROADCAST",
+  "RECEIVE",
+  "MESSAGE",
+  "EVENT",
+  "ON",
+  "VEHICLE_ID",
+  "ROUTE",
+  "WAYPOINT",
+  "GOTO",
+  "MAP",
+  "NAVIGATE",
+  "DESTINATION",
+  "EQ",
+  "NEQ",
+  "LE",
+  "GE",
+  "AND",
+  "OR",
+  "NOT",
   "PLUS",
   "MINUS",
   "MUL",
   "DIV",
-  "POWER",
-  "ERROR",
-  "SQRT",
-  "SIN",
-  "PI",
-  "FLOAT_LITERAL",
-  "INTEGER_LITERAL",
-  "IDENTIFIER",
-  "LEFT_PAREN",
-  "RIGHT_PAREN",
+  "MOD",
+  "ASSIGN",
+  "LT",
+  "GT",
+  "SEMI",
+  "COMMA",
+  "LPAREN",
+  "RPAREN",
   "LBRACE",
   "RBRACE",
-  "ASSIGNMENT",
-  "COMMA",
-  "SEMICOLON",
-  "GT",
-  "LT",
-  "GE",
-  "LE",
-  "EQ",
-  "NE",
-  "IF",
-  "ELSE",
-  "FOR"
+  "LBRACK",
+  "RBRACK",
+  "ID",
+  "STRING",
+  "NUMBER"
   };
 }
 

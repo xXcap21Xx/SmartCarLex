@@ -1,346 +1,198 @@
-/* Parser.cup */
+import java.util.ArrayList;
+import java.util.List;
+import compilerTools.ErrorLSSL;
+import compilerTools.Token; // IMPORTANTE: Importar tu clase Token
+import compilerTools.ASTNode;
+import java_cup.runtime.*;
 
-/* ====================== Bloque parser code ====================== */
 parser code {:
-  import java.util.ArrayList;
-  import java.util.List;
-  import compilerTools.ErrorLSSL;
-  import compilerTools.Token;
-  import compilerTools.ASTNode;
-  import java_cup.runtime.*;
-  public List<ErrorLSSL> errors = new ArrayList<>();
+    public List<ErrorLSSL> errors = new ArrayList<>();
+
+    public void syntax_error(Symbol s) {
+        errors.add(new ErrorLSSL(s.left, s.right, "Error Sintáctico en: " + s.value));
+    }
 :}
 
-/* ====================== 1) DECLARACIÓN DE TERMINALES ====================== */
+/* ====================== TERMINALES ====================== */
+// Estructura
+terminal PROGRAM, INICIO, END, METODO, RUTINA, ENTRADA, SALIDA, REGRESA;
+terminal NUM, BOOL, STR, VAR, CONST, SET;
+terminal TRUE, FALSE;
 
-terminal PLUS, MINUS, MUL, DIV, POWER, ERROR;
-terminal SQRT, SIN, PI;
-terminal FLOAT_LITERAL, INTEGER_LITERAL;
-terminal IDENTIFIER;
-terminal LEFT_PAREN, RIGHT_PAREN;
-terminal LBRACE, RBRACE;
-terminal ASSIGNMENT, COMMA, SEMICOLON;
-terminal GT, LT, GE, LE, EQ, NE;
-terminal IF, ELSE, FOR;
+// Control
+terminal CUANDO, SINO, MIENTRAS, LOOP, SALIR, SIGUE;
 
-/* ====================== 2) DECLARACIÓN DE NO TERMINALES ====================== */
+// Vehículo
+terminal MOVE, TURN, STOP, WAIT, ACCEL, DECEL, REVERSE, BRAKE;
 
-non terminal ASTNode Program, Statement, Expression, Term, Factor;
-non terminal ASTNode IfStatement, ForStatement, Block, StatementList;
-non terminal ASTNode RelationalExpression;
-non terminal ASTNode SimpleStatement, ControlStatement;
+// Sensores y Comunicación
+terminal SENSOR, GPS, SPEED, DISTANCE, OBSTACLE;
+terminal BROADCAST, RECEIVE, MESSAGE, EVENT, ON, VEHICLE_ID;
 
-/* ====================== 3) SÍMBOLO INICIAL ====================== */
+// Navegación
+terminal ROUTE, WAYPOINT, GOTO, MAP, NAVIGATE, DESTINATION;
 
-start with Program;
+// Operadores
+terminal EQ, NEQ, LE, GE, AND, OR, NOT;
+terminal PLUS, MINUS, MUL, DIV, MOD, ASSIGN, LT, GT;
 
-/* ====================== 4) PRODUCCIONES ====================== */
+// Puntuación
+terminal SEMI, COMMA, LPAREN, RPAREN, LBRACE, RBRACE, LBRACK, RBRACK;
 
-Program ::=
-      /* empty */
-      {: RESULT = new ASTNode("Program"); :}
-    | Program Statement SEMICOLON
-      {:
-         Symbol prog = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
-         Symbol stmt = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 1);
-         ASTNode node = (ASTNode) prog.value;
-         node.addChild((ASTNode) stmt.value);
-         RESULT = node;
-      :}
-    | Program Statement
-      {:
-         Symbol prog = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 1);
-         Symbol stmt = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         ASTNode node = (ASTNode) prog.value;
-         node.addChild((ASTNode) stmt.value);
-         RESULT = node;
+// *** CORRECCIÓN: Usamos 'Token' porque el Lexer devuelve objetos Token, no Strings puros ***
+terminal Token ID, STRING, NUMBER;
+
+/* ====================== NO TERMINALES ====================== */
+non terminal ASTNode program, main_block, block, statement_list, statement;
+non terminal ASTNode declaration, assignment, flow_control, io_stmt;
+non terminal ASTNode vehicle_cmd, nav_cmd, comm_cmd;
+non terminal ASTNode expression, arguments, type;
+
+/* ====================== PRECEDENCIA ====================== */
+precedence left OR;
+precedence left AND;
+precedence left EQ, NEQ;
+precedence left LT, GT, LE, GE;
+precedence left PLUS, MINUS;
+precedence left MUL, DIV, MOD;
+precedence right NOT;
+precedence nonassoc SINO; 
+
+/* ====================== GRAMÁTICA ====================== */
+
+start with program;
+
+// Nota: Ahora 'name' es un objeto Token, usamos name.getLexeme()
+program ::= 
+    PROGRAM ID:name LBRACE main_block:mb RBRACE
+    {: 
+        ASTNode node = new ASTNode("Program: " + name.getLexeme());
+        node.addChild(mb);
+        RESULT = node; 
+    :}
+    ;
+
+main_block ::= 
+    INICIO block:b
+    {: 
+        ASTNode node = new ASTNode("Inicio");
+        node.addChild(b);
+        RESULT = node; 
+    :}
+    ;
+
+block ::= 
+    LBRACE statement_list:s RBRACE {: RESULT = s; :}
+    | LBRACE RBRACE {: RESULT = new ASTNode("EmptyBlock"); :}
+    ;
+
+statement_list ::= 
+      statement_list:list statement:s
+      {: list.addChild(s); RESULT = list; :}
+    | statement:s
+      {: 
+         ASTNode node = new ASTNode("Statements");
+         node.addChild(s);
+         RESULT = node; 
       :}
     ;
 
-Statement ::=
-      IDENTIFIER ASSIGNMENT Expression
-      {:
-         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
-         Symbol sym3 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         Token idToken = (Token) sym1.value;
-         ASTNode assign = new ASTNode("Assign");
-         assign.addChild(new ASTNode("ID: " + idToken.getLexeme()));
-         assign.addChild((ASTNode) sym3.value);
-         RESULT = assign;
-      :}
-    | IfStatement
-      {:
-         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         RESULT = (ASTNode) sym1.value;
-      :}
-    | ForStatement
-      {:
-         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         RESULT = (ASTNode) sym1.value;
-      :}
-    | Expression
-      {:
-         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         RESULT = (ASTNode) sym1.value;
-      :}
-    /* Errores sintácticos en Statement */
-    | error ASSIGNMENT Expression
-      {:
-         errors.add(new ErrorLSSL(0, 0, "Error sintáctico: falta identificador antes de '='."));
-         RESULT = new ASTNode("Error");
-      :}
-    | IDENTIFIER ASSIGNMENT error
-      {:
-         errors.add(new ErrorLSSL(0, 0, "Error sintáctico: falta expresión después de '='."));
-         RESULT = new ASTNode("Error");
-      :}
+statement ::= 
+      declaration:d     {: RESULT = d; :}
+    | assignment:a      {: RESULT = a; :}
+    | flow_control:f    {: RESULT = f; :}
+    | vehicle_cmd:v SEMI {: RESULT = v; :} 
+    | nav_cmd:n SEMI    {: RESULT = n; :}
+    | comm_cmd:c SEMI   {: RESULT = c; :}
+    | io_stmt:io SEMI   {: RESULT = io; :}
+    | ID:id LPAREN arguments:args RPAREN SEMI 
+      {: ASTNode n = new ASTNode("Call: " + id.getLexeme()); n.addChild(args); RESULT = n; :}
+    | error SEMI        {: RESULT = new ASTNode("ErrorRecuperado"); :}
     ;
 
-/* IF-ELSE */
-IfStatement ::=
-      IF LEFT_PAREN RelationalExpression RIGHT_PAREN Block
-      {:
-         Symbol cond = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
-         Symbol block = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         ASTNode node = new ASTNode("If");
-         node.addChild((ASTNode) cond.value);
-         node.addChild((ASTNode) block.value);
-         RESULT = node;
+/* --- Declaraciones --- */
+declaration ::= 
+      type:t ID:id ASSIGN expression:e SEMI
+      {: 
+         ASTNode n = new ASTNode("DeclVar: " + id.getLexeme());
+         n.addChild(t);
+         n.addChild(e);
+         RESULT = n; 
       :}
-    | IF LEFT_PAREN RelationalExpression RIGHT_PAREN Block ELSE Block
-      {:
-         Symbol cond = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 4);
-         Symbol ifBlock = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
-         Symbol elseBlock = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         ASTNode node = new ASTNode("IfElse");
-         node.addChild((ASTNode) cond.value);
-         node.addChild((ASTNode) ifBlock.value);
-         node.addChild((ASTNode) elseBlock.value);
-         RESULT = node;
-      :}
-  ;
-
-/* FOR */
-ForStatement ::=
-      FOR LEFT_PAREN Statement SEMICOLON RelationalExpression SEMICOLON Statement RIGHT_PAREN Block
-      {:
-         Symbol init = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 6);
-         Symbol cond = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 4);
-         Symbol update = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
-         Symbol block = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         ASTNode node = new ASTNode("For");
-         node.addChild((ASTNode) init.value);
-         node.addChild((ASTNode) cond.value);
-         node.addChild((ASTNode) update.value);
-         node.addChild((ASTNode) block.value);
-         RESULT = node;
-      :}
-  ;
-
-/* RELATIONAL EXPRESSIONS */
-RelationalExpression ::=
-      Expression GT Expression
-      {:
-         ASTNode node = new ASTNode(">");
-         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2)).value);
-         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).peek()).value);
-         RESULT = node;
-      :}
-    | Expression LT Expression
-      {:
-         ASTNode node = new ASTNode("<");
-         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2)).value);
-         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).peek()).value);
-         RESULT = node;
-      :}
-    | Expression GE Expression
-      {:
-         ASTNode node = new ASTNode(">=");
-         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2)).value);
-         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).peek()).value);
-         RESULT = node;
-      :}
-    | Expression LE Expression
-      {:
-         ASTNode node = new ASTNode("<=");
-         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2)).value);
-         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).peek()).value);
-         RESULT = node;
-      :}
-    | Expression EQ Expression
-      {:
-         ASTNode node = new ASTNode("==");
-         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2)).value);
-         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).peek()).value);
-         RESULT = node;
-      :}
-    | Expression NE Expression
-      {:
-         ASTNode node = new ASTNode("!=");
-         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2)).value);
-         node.addChild((ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).peek()).value);
-         RESULT = node;
-      :}
-    | Expression
-      {:
-         RESULT = (ASTNode)((Symbol)((java.util.Stack)CUP$Parser$stack).peek()).value;
-      :}
+    | VAR ID:id ASSIGN expression:e SEMI
+      {: ASTNode n = new ASTNode("VarDynamic: " + id.getLexeme()); n.addChild(e); RESULT = n; :}
     ;
 
-Block ::=
-      LBRACE StatementList RBRACE
-      {:
-         Symbol stmts = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 1);
-         ASTNode node = new ASTNode("Block");
-         node.addChild((ASTNode) stmts.value);
-         RESULT = node;
-      :}
+type ::= 
+      NUM   {: RESULT = new ASTNode("Type:Num"); :}
+    | BOOL  {: RESULT = new ASTNode("Type:Bool"); :}
+    | STR   {: RESULT = new ASTNode("Type:Str"); :}
     ;
 
-StatementList ::=
-      /* empty */
-      {: RESULT = new ASTNode("Statements"); :}
-    | StatementList SimpleStatement SEMICOLON
-      {:
-         Symbol stmts = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
-         Symbol stmt = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 1);
-         ASTNode node = (ASTNode) stmts.value;
-         node.addChild((ASTNode) stmt.value);
-         RESULT = node;
-      :}
-    | StatementList ControlStatement
-      {:
-         Symbol stmts = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 1);
-         Symbol stmt = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         ASTNode node = (ASTNode) stmts.value;
-         node.addChild((ASTNode) stmt.value);
-         RESULT = node;
-      :}
+/* --- Asignaciones --- */
+assignment ::= 
+      ID:id ASSIGN expression:e SEMI
+      {: ASTNode n = new ASTNode("Assign: " + id.getLexeme()); n.addChild(e); RESULT = n; :}
+    | SET ID:id ASSIGN expression:e SEMI
+      {: ASTNode n = new ASTNode("Set: " + id.getLexeme()); n.addChild(e); RESULT = n; :}
     ;
 
-SimpleStatement ::=
-      IDENTIFIER ASSIGNMENT Expression
-      {:
-         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
-         Symbol sym3 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         Token idToken = (Token) sym1.value;
-         ASTNode assign = new ASTNode("Assign");
-         assign.addChild(new ASTNode("ID: " + idToken.getLexeme()));
-         assign.addChild((ASTNode) sym3.value);
-         RESULT = assign;
-      :}
-    | Expression
-      {:
-         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         RESULT = (ASTNode) sym1.value;
-      :}
-    /* Errores sintácticos en SimpleStatement */
-    | error ASSIGNMENT Expression
-      {:
-         errors.add(new ErrorLSSL(0, 0, "Error sintáctico: falta identificador antes de '='."));
-         RESULT = new ASTNode("Error");
-      :}
-    | IDENTIFIER ASSIGNMENT error
-      {:
-         errors.add(new ErrorLSSL(0, 0, "Error sintáctico: falta expresión después de '='."));
-         RESULT = new ASTNode("Error");
-      :}
+/* --- IO --- */
+io_stmt ::= 
+      SALIDA LPAREN expression:e RPAREN {: ASTNode n = new ASTNode("Salida"); n.addChild(e); RESULT = n; :}
     ;
 
-
-/* EXPRESIONES Y FACTORES */
-Expression ::=
-      Expression PLUS Term
-      {:
-         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
-         Symbol sym3 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         ASTNode node = new ASTNode("+");
-         node.addChild((ASTNode) sym1.value);
-         node.addChild((ASTNode) sym3.value);
-         RESULT = node;
-      :}
-    | Expression MINUS Term
-      {:
-         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
-         Symbol sym3 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         ASTNode node = new ASTNode("-");
-         node.addChild((ASTNode) sym1.value);
-         node.addChild((ASTNode) sym3.value);
-         RESULT = node;
-      :}
-    | Term
-      {:
-         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         RESULT = (ASTNode) sym1.value;
-      :}
+/* --- Control de Flujo --- */
+flow_control ::= 
+      CUANDO LPAREN expression:c RPAREN block:b1 SINO block:b2
+      {: ASTNode n = new ASTNode("If-Else"); n.addChild(c); n.addChild(b1); n.addChild(b2); RESULT = n; :}
+    | CUANDO LPAREN expression:c RPAREN block:b1
+      {: ASTNode n = new ASTNode("If"); n.addChild(c); n.addChild(b1); RESULT = n; :}
+    | MIENTRAS LPAREN expression:c RPAREN block:b
+      {: ASTNode n = new ASTNode("While"); n.addChild(c); n.addChild(b); RESULT = n; :}
+    | LOOP LPAREN expression:e RPAREN block:b
+      {: ASTNode n = new ASTNode("Loop"); n.addChild(e); n.addChild(b); RESULT = n; :}
     ;
 
-Term ::=
-      Term MUL Factor
-      {:
-         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
-         Symbol sym3 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         ASTNode node = new ASTNode("*");
-         node.addChild((ASTNode) sym1.value);
-         node.addChild((ASTNode) sym3.value);
-         RESULT = node;
-      :}
-    | Term DIV Factor
-      {:
-         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
-         Symbol sym3 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         ASTNode node = new ASTNode("/");
-         node.addChild((ASTNode) sym1.value);
-         node.addChild((ASTNode) sym3.value);
-         RESULT = node;
-      :}
-    | Factor
-      {:
-         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         RESULT = (ASTNode) sym1.value;
-      :}
+/* --- Comandos Vehículo --- */
+vehicle_cmd ::= 
+      MOVE LPAREN expression:e RPAREN {: ASTNode n = new ASTNode("Move"); n.addChild(e); RESULT = n; :}
+    | TURN LPAREN expression:e RPAREN {: ASTNode n = new ASTNode("Turn"); n.addChild(e); RESULT = n; :}
+    | STOP {: RESULT = new ASTNode("Stop"); :} 
+    | BRAKE {: RESULT = new ASTNode("Brake"); :}
+    | ACCEL LPAREN expression:e RPAREN {: ASTNode n = new ASTNode("Accel"); n.addChild(e); RESULT = n; :}
+    | WAIT LPAREN expression:e RPAREN  {: ASTNode n = new ASTNode("Wait"); n.addChild(e); RESULT = n; :}
     ;
 
-Factor ::=
-      FLOAT_LITERAL
-      {:
-         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         Token tok = (Token) sym1.value;
-         RESULT = new ASTNode("Float: " + tok.getLexeme());
-      :}
-    | INTEGER_LITERAL
-      {:
-         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         Token tok = (Token) sym1.value;
-         RESULT = new ASTNode("Int: " + tok.getLexeme());
-      :}
-    | IDENTIFIER
-      {:
-         Symbol sym1 = (Symbol)((java.util.Stack)CUP$Parser$stack).peek();
-         Token tok = (Token) sym1.value;
-         RESULT = new ASTNode("ID: " + tok.getLexeme());
-      :}
-    | SQRT LEFT_PAREN Expression RIGHT_PAREN
-      {:
-         Symbol sym3 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
-         ASTNode node = new ASTNode("SQRT");
-         node.addChild((ASTNode) sym3.value);
-         RESULT = node;
-      :}
-    | SIN LEFT_PAREN Expression RIGHT_PAREN
-      {:
-         Symbol sym3 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 2);
-         ASTNode node = new ASTNode("SIN");
-         node.addChild((ASTNode) sym3.value);
-         RESULT = node;
-      :}
-    | LEFT_PAREN Expression RIGHT_PAREN
-      {:
-         Symbol sym2 = (Symbol)((java.util.Stack)CUP$Parser$stack).elementAt(CUP$Parser$top - 1);
-         RESULT = (ASTNode) sym2.value;
-      :}
-    | PI
-      {:
-         RESULT = new ASTNode("PI");
-      :}
+nav_cmd ::= 
+      GOTO LPAREN expression:e RPAREN {: ASTNode n = new ASTNode("Goto"); n.addChild(e); RESULT = n; :}
+    ;
+
+comm_cmd ::= 
+      BROADCAST LPAREN expression:e RPAREN {: ASTNode n = new ASTNode("Broadcast"); n.addChild(e); RESULT = n; :}
+    ;
+
+/* --- Expresiones --- */
+expression ::= 
+      expression:e1 PLUS expression:e2   {: ASTNode n = new ASTNode("+"); n.addChild(e1); n.addChild(e2); RESULT = n; :}
+    | expression:e1 MINUS expression:e2  {: ASTNode n = new ASTNode("-"); n.addChild(e1); n.addChild(e2); RESULT = n; :}
+    | expression:e1 MUL expression:e2    {: ASTNode n = new ASTNode("*"); n.addChild(e1); n.addChild(e2); RESULT = n; :}
+    | expression:e1 EQ expression:e2     {: ASTNode n = new ASTNode("=="); n.addChild(e1); n.addChild(e2); RESULT = n; :}
+    | expression:e1 LT expression:e2     {: ASTNode n = new ASTNode("<"); n.addChild(e1); n.addChild(e2); RESULT = n; :}
+    | expression:e1 GT expression:e2     {: ASTNode n = new ASTNode(">"); n.addChild(e1); n.addChild(e2); RESULT = n; :}
+    | SENSOR LPAREN OBSTACLE RPAREN      {: RESULT = new ASTNode("Sensor:Obstacle"); :}
+    | SENSOR LPAREN DISTANCE RPAREN      {: RESULT = new ASTNode("Sensor:Distance"); :}
+    
+    /* Corrección aquí también: extraemos el lexema del Token */
+    | NUMBER:n {: RESULT = new ASTNode("Num: " + n.getLexeme()); :}
+    | STRING:s {: RESULT = new ASTNode("Str: " + s.getLexeme()); :}
+    | ID:id    {: RESULT = new ASTNode("ID: " + id.getLexeme()); :}
+    | TRUE     {: RESULT = new ASTNode("True"); :}
+    | FALSE    {: RESULT = new ASTNode("False"); :}
+    ;
+
+arguments ::= 
+      arguments:list COMMA expression:e {: list.addChild(e); RESULT = list; :}
+    | expression:e {: ASTNode n = new ASTNode("Args"); n.addChild(e); RESULT = n; :}
+    | /* vacio */ {: RESULT = new ASTNode("NoArgs"); :}
     ;
