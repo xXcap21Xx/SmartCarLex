@@ -34,4 +34,4 @@ Ahora, para poder moficar el Parser.cup y el sym.java debemos de poner este coma
     
     java -jar java-cup-11b.jar -parser Parser -symbols sym c:LaRutaDondeTengasElProyecto\GitHub\SmartCarLex\src\Parser.cup
 
-y modificara/creara los archivos.java (Sym.java y Parser.java). OJO!!!, los archivos los crea en raiz del proyecto, solo muevanlos a la carpeta src y todo se arregla (reemplacenlos con los generados por Parcer.cup y sym.java)
+y modificara/creara los archivos.java (Sym.java y Parser.java). OJO!!!, los archivos los crea en raiz del proyecto, solo muevanlos a la carpeta src y todo se arregla (reemplacenlos con los que ya existen)
