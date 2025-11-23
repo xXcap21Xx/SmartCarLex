@@ -42,7 +42,7 @@ public class Compilador extends javax.swing.JFrame {
     private String title;
     private Directory Directorio;
     private ArrayList<Token> tokens;
-    private ArrayList<ErrorLSSL> errors;
+    private ArrayList<TError> errors;
     private ArrayList<TextColor> textsColor;
     private Timer timerKeyReleased;
     private ArrayList<Production> identProd;
@@ -60,10 +60,10 @@ public class Compilador extends javax.swing.JFrame {
     }
 
     private void init() {
-        title = "MathLex";
+        title = "SmartCar";
         setLocationRelativeTo(null);
         setTitle(title);
-        Directorio = new Directory(this, panel_Codigo, title, ".lex");
+        Directorio = new Directory(this, panel_Codigo, title, ".aut");
         addWindowListener(new WindowAdapter() {// Cuando presiona la "X" de la esquina superior derecha
             @Override
             public void windowClosing(WindowEvent e) {
@@ -84,9 +84,25 @@ public class Compilador extends javax.swing.JFrame {
         textsColor = new ArrayList<>();
         identProd = new ArrayList<>();
         identificadores = new HashMap<>();
-        Functions.setAutocompleterJTextComponent(new String[]{"color", "numero", "este", "oeste", "sur", "norte", "pintar"}, panel_Codigo, () -> { //Corregir para proyecto
+        Functions.setAutocompleterJTextComponent(new String[]{"program", "inicio", "end", "metodo", "rutina", "entrada", "salida", "regresa", "num", "bool", "str", "var", "const", "set", "true", "false", "cuando", "sino", "mientras", "loop", "salir", "sigue", "move", "turn", "stop", "wait", "accelerate", "decelerate", "reverse", "brake", "sensor", "gps", "speed", "distance", "obstacle", "broadcast", "receive", "message", "event", "on", "vehicle_id", "route", "waypoint", "goto", "map", "navigate", "destination"}, panel_Codigo, () -> { //Corregir para proyecto
             timerKeyReleased.restart();
         });
+    }
+
+    private void llenarTablaTokens(ArrayList<Token> tokens) {
+        // 1. Obtener el modelo de la tabla (asegúrate que tu tabla se llame tbl_Tokens o tbl_Componentes)
+        DefaultTableModel modelo = (DefaultTableModel) tbl_Token.getModel();
+        modelo.setRowCount(0); // Limpiar tabla anterior
+
+        // 2. Recorrer la lista y agregar filas
+        for (Token t : tokens) {
+            Object[] fila = new Object[]{
+                t.getLexeme(), // Columna 1: Componente léxico (lo que se escribió)
+                t.getLexicalComp(), // Columna 2: Categoría (ID, NUM, VAR, etc.)
+                "[" + t.getLine() + ", " + t.getColumn() + "]" // Columna 3: Línea/Columna
+            };
+            modelo.addRow(fila);
+        }
     }
 
     private void colorAnalysis() {
@@ -116,13 +132,33 @@ public class Compilador extends javax.swing.JFrame {
         Functions.colorTextPane(textsColor, panel_Codigo, new Color(40, 40, 40));
     }
 
-    private void getASTAsString(ASTNode node, String indent, StringBuilder sb) {
+// Método recursivo para convertir el árbol en texto con formato
+    private void getASTAsString(ASTNode node, String prefix, StringBuilder sb) {
         if (node == null) {
             return;
         }
-        sb.append(indent).append(node.label).append("\n");
-        for (ASTNode child : node.children) {
-            getASTAsString(child, indent + "  ", sb);
+
+        // Agregar el nodo actual al StringBuilder
+        sb.append(prefix);
+        sb.append(node.label != null ? node.label : "Node");
+        sb.append("\n");
+
+        // Recorrer hijos
+        if (node.children != null) {
+            for (int i = 0; i < node.children.size(); i++) {
+                ASTNode child = node.children.get(i);
+                // Lógica para dibujar las líneas del árbol
+                boolean isLast = (i == node.children.size() - 1);
+                String newPrefix = prefix + (isLast ? "    " : "│   ");
+                String childPrefix = prefix + (isLast ? "└── " : "├── ");
+
+                // Llamada recursiva (fíjate que pasamos childPrefix solo para la visualización inmediata)
+                // Pero para los hijos de los hijos pasamos newPrefix
+                getASTAsString(child, prefix + (isLast ? "    " : "│   "), sb);
+
+                // NOTA: Para simplificarlo visualmente, a veces es mejor hacerlo así:
+                // getASTAsString(child, prefix + "    ", sb);
+            }
         }
     }
 
@@ -131,12 +167,27 @@ public class Compilador extends javax.swing.JFrame {
         panel_Salida.setText("");
         tokens.clear();
         errors.clear();
-        identProd.clear();
-        identificadores.clear();
+        errors = new ArrayList<>();
+        //identProd.clear();
+        //identificadores.clear();
         codeHasBeenCompiled = false;
     }
 
     private void compile() {
+        clearFields();
+        // 1. LÉXICO
+        lexicalAnalysis();
+        System.out.println("Errores tras Lexico: " + errors.size()); // <--- DEBUG
+        fieldTableTokens();
+        // 2. SINTÁCTICO
+        syntacticAnalysis();
+        System.out.println("Errores tras Sintactico: " + errors.size()); // <--- DEBUG
+        // 3. SEMÁNTICO
+        semanticAnalysis();
+        // 4. IMPRIMIR
+        printConsole();
+        codeHasBeenCompiled = true;
+        /*
         clearFields();
         lexicalAnalysis();
         fieldTableTokens();
@@ -144,9 +195,39 @@ public class Compilador extends javax.swing.JFrame {
         semanticAnalysis();
         printConsole();
         codeHasBeenCompiled = true;
+         */
     }
 
     private void lexicalAnalysis() {
+        // 1. Limpiar tokens previos
+// Limpiamos la lista de tokens para empezar de nuevo
+        tokens.clear();
+
+        try {
+            java.io.StringReader reader = new java.io.StringReader(panel_Codigo.getText());
+            Lexer lexer = new Lexer(reader);
+
+            while (true) {
+                java_cup.runtime.Symbol s = lexer.next_token();
+                if (s.sym == sym.EOF) {
+                    break;
+                }
+
+                // Guardamos tokens válidos para la tabla
+                if (s.sym != sym.ERROR && s.value instanceof Token) {
+                    tokens.add((Token) s.value);
+                }
+            }
+
+            // AQUÍ ESTÁ LA CLAVE: 
+            // Recuperamos los errores léxicos que tu Lexer ya detectó (el escenario A)
+            errors.addAll(lexer.lexerErrors);
+
+        } catch (Exception ex) {
+            System.err.println("Error técnico en léxico: " + ex.getMessage());
+        }
+
+        /*
         // Extraer tokens
         tokens.clear();
         Lexer lexer;
@@ -183,6 +264,7 @@ public class Compilador extends javax.swing.JFrame {
         } catch (IOException ex) {
             System.err.println("Error de E/S con el archivo: " + ex.getMessage());
         }
+         */
     }
 
     private void fieldTableTokens() {
@@ -193,6 +275,25 @@ public class Compilador extends javax.swing.JFrame {
     }
 
     private void syntacticAnalysis() {
+        try {
+            // Nueva lectura para la segunda pasada
+            java.io.StringReader reader = new java.io.StringReader(panel_Codigo.getText());
+            Lexer lexer = new Lexer(reader);
+            Parser parser = new Parser(lexer);
+
+            // Ejecutamos el análisis
+            parser.parse();
+
+            // AQUÍ ESTÁ LA OTRA CLAVE:
+            // Recuperamos los errores sintácticos (trampas de ; y paréntesis) del Parser
+            errors.addAll(parser.errors);
+
+        } catch (Exception ex) {
+            // Si el parser explota, lo mostramos como error fatal
+            errors.add(new TError(0, 0, "Error Fatal de Sintaxis: " + ex.getMessage()));
+        }
+
+        /*
         errors.clear(); // Limpia errores anteriores
         try {
             String code = panel_Codigo.getText();
@@ -222,6 +323,7 @@ public class Compilador extends javax.swing.JFrame {
         } catch (Exception ex) {
             panel_Salida.setText("Error durante el análisis sintáctico: " + ex.getMessage());
         }
+         */
     }
 
     private void semanticAnalysis() {
@@ -241,6 +343,25 @@ public class Compilador extends javax.swing.JFrame {
     private void printConsole() {
         int sizeErrors = errors.size();
         if (sizeErrors > 0) {
+
+            // Ordenamiento manual usando lambda (reemplaza a Functions.sortErrors...)
+            errors.sort((e1, e2) -> Integer.compare(e1.linea, e2.linea));
+
+            StringBuilder strErrors = new StringBuilder("\n");
+            for (TError error : errors) {
+                strErrors.append(error.toString()).append("\n");
+            }
+
+            panel_Salida.setForeground(java.awt.Color.RED);
+            panel_Salida.setText("Compilación terminada con errores:\n" + strErrors.toString());
+        } else {
+            panel_Salida.setForeground(new java.awt.Color(0, 128, 0));
+            panel_Salida.setText("Compilación exitosa.\nNo se detectaron errores.");
+        }
+
+        /*
+        int sizeErrors = errors.size();
+        if (sizeErrors > 0) {
             Functions.sortErrorsByLineAndColumn(errors);
             String strErrors = "\n";
             for (ErrorLSSL error : errors) {
@@ -251,6 +372,7 @@ public class Compilador extends javax.swing.JFrame {
         } else {
             panel_Salida.setText("Compilación Terminada...");
         }
+         */
     }
 
     /**

@@ -1,15 +1,46 @@
 import java.util.ArrayList;
 import java.util.List;
-import compilerTools.ErrorLSSL;
 import compilerTools.Token; // IMPORTANTE: Importar tu clase Token
 import compilerTools.ASTNode;
 import java_cup.runtime.*;
 
 parser code {:
-    public List<ErrorLSSL> errors = new ArrayList<>();
+    // Lista de errores
+    public java.util.List<TError> errors = new java.util.ArrayList<>();
 
+    // Método auxiliar para extraer coordenadas seguras
+    private TError crearError(Symbol s, String mensajeBase) {
+        int linea = s.left;
+        int columna = s.right;
+        String lexema;
+        
+        if (s.sym == sym.EOF) {
+            lexema = "Fin de Archivo";
+            // Si por alguna razón JFlex falla y manda -1, forzamos un 0 o mensaje
+            if (linea == -1) { 
+                mensajeBase = mensajeBase + " (Final inesperado)"; 
+                // Opcional: intentar usar una variable estática global para la última línea conocida
+            }
+        } else if (s.value != null && s.value instanceof Token) {
+            Token t = (Token) s.value;
+            linea = t.getLine();
+            columna = t.getColumn();
+            lexema = t.getLexeme();
+        } else {
+            lexema = (s.value != null) ? s.value.toString() : "Token desconocido";
+        }
+        
+        return new TError(linea, columna, mensajeBase + " '" + lexema + "'");
+    }
+
+    // Error recuperable
     public void syntax_error(Symbol s) {
-        errors.add(new ErrorLSSL(s.left, s.right, "Error Sintáctico en: " + s.value));
+        errors.add(crearError(s, "Error Sintáctico: No se esperaba"));
+    }
+
+    // Error fatal
+    public void unrecovered_syntax_error(Symbol s) {
+        errors.add(crearError(s, "Error Fatal: Estructura incompleta o inesperada cerca de"));
     }
 :}
 

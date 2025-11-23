@@ -4,12 +4,11 @@
 
 import compilerTools.Token;
 import java_cup.runtime.Symbol;
-import compilerTools.ErrorLSSL;
 import java.util.ArrayList;
 
 
 @SuppressWarnings("fallthrough")
-public class Lexer implements java_cup.runtime.Scanner{
+public class Lexer implements java_cup.runtime.Scanner {
 
   /** This character denotes the end of file. */
   public static final int YYEOF = -1;
@@ -527,11 +526,11 @@ public class Lexer implements java_cup.runtime.Scanner{
   private boolean zzEOFDone;
 
   /* user code: */
-    public ArrayList<ErrorLSSL> lexerErrors = new ArrayList<>();
+    public ArrayList<TError> lexerErrors = new ArrayList<>();
 
     private Symbol token(String lexeme, String lexicalComp, int line, int column, int symCode) {
         Token t = new Token(lexeme, lexicalComp, line + 1, column + 1);
-        return new Symbol(symCode, t);
+        return new Symbol(symCode, line + 1, column + 1, t);
     }
 
 
@@ -954,13 +953,14 @@ public class Lexer implements java_cup.runtime.Scanner{
       if (zzInput == YYEOF && zzStartRead == zzCurrentPos) {
         zzAtEOF = true;
             zzDoEOF();
-          { return new java_cup.runtime.Symbol(sym.EOF); }
+          {     return new java_cup.runtime.Symbol(sym.EOF, yyline+1, yycolumn+1);
+ }
       }
       else {
         switch (zzAction < 0 ? zzAction : ZZ_ACTION[zzAction]) {
           case 1:
             { // Guardamos el error en la lista antes de devolver el token
-    lexerErrors.add(new ErrorLSSL(yyline+1, yycolumn+1, "Error Léxico: Caracter no reconocido '" + yytext() + "'"));
+    lexerErrors.add(new TError(yyline+1, yycolumn+1, "Error Léxico: Caracter inválido '" + yytext() + "'"));
     return token(yytext(), "ERROR", yyline, yycolumn, sym.ERROR);
             }
           // fall through

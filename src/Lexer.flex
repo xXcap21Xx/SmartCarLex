@@ -1,6 +1,5 @@
 import compilerTools.Token;
 import java_cup.runtime.Symbol;
-import compilerTools.ErrorLSSL;
 import java.util.ArrayList;
 
 %%
@@ -14,13 +13,17 @@ import java.util.ArrayList;
 %column
 
 %{
-    public ArrayList<ErrorLSSL> lexerErrors = new ArrayList<>();
+    public ArrayList<TError> lexerErrors = new ArrayList<>();
 
     private Symbol token(String lexeme, String lexicalComp, int line, int column, int symCode) {
         Token t = new Token(lexeme, lexicalComp, line + 1, column + 1);
-        return new Symbol(symCode, t);
+        return new Symbol(symCode, line + 1, column + 1, t);
     }
 %}
+
+%eofval{
+    return new java_cup.runtime.Symbol(sym.EOF, yyline+1, yycolumn+1);
+%eofval}
 
 /* Macros */
 LineTerminator = \r|\n|\r\n
@@ -134,6 +137,6 @@ StringLiteral  = \"([^\\\"]|\\.)*\"
 
 . {
     // Guardamos el error en la lista antes de devolver el token
-    lexerErrors.add(new ErrorLSSL(yyline+1, yycolumn+1, "Error Léxico: Caracter no reconocido '" + yytext() + "'"));
+    lexerErrors.add(new TError(yyline+1, yycolumn+1, "Error Léxico: Caracter inválido '" + yytext() + "'"));
     return token(yytext(), "ERROR", yyline, yycolumn, sym.ERROR);
 }
