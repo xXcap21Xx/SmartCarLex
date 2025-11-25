@@ -14,21 +14,44 @@ import java.util.ArrayList;
 
 %{
     public ArrayList<TError> lexerErrors = new ArrayList<>();
+    
+    // --- NUEVO: Bandera para controlar el punto y coma ---
+    private boolean seEsperaPuntoYComa = false;
 
-    private Symbol token(String lexeme, String lexicalComp, int line, int column, int symCode) {
+private Symbol token(String lexeme, String lexicalComp, int line, int column, int symCode) {
+        
+        // Caso 1: Tokens que finalizan una instrucción
+        if (symCode == sym.ID || symCode == sym.NUMBER || symCode == sym.STRING || 
+            symCode == sym.RPAREN || symCode == sym.RBRACK || 
+            symCode == sym.TRUE || symCode == sym.FALSE || 
+            
+            // --- CORRECCIÓN AQUÍ ---
+            symCode == sym.SALIR ||    // Antes era BREAK
+            symCode == sym.BRAKE ||    // El comando de frenar
+            symCode == sym.STOP  ||    // El comando de parar
+            // -----------------------
+
+            symCode == sym.REGRESA) { 
+            
+            seEsperaPuntoYComa = true;
+        } 
+        else {
+            seEsperaPuntoYComa = false;
+        }
+
         Token t = new Token(lexeme, lexicalComp, line + 1, column + 1);
+        // Recuerda usar el constructor de 4 parámetros que arreglamos antes
         return new Symbol(symCode, line + 1, column + 1, t);
     }
 %}
 
-%eofval{
-    return new java_cup.runtime.Symbol(sym.EOF, yyline+1, yycolumn+1);
-%eofval}
-
 /* Macros */
 LineTerminator = \r|\n|\r\n
 InputCharacter = [^\r\n]
-WhiteSpace     = {LineTerminator} | [ \t\f]
+
+/* OJO: Quitamos LineTerminator de WhiteSpace para manejarlo manualmente */
+WhiteSpace     = [ \t\f] 
+
 Comment        = "//" {InputCharacter}* {LineTerminator}? | "/*" [^*]* ~"*/"
 
 /* Identificadores y Literales */
@@ -38,11 +61,26 @@ StringLiteral  = \"([^\\\"]|\\.)*\"
 
 %%
 
-/* 1. Ignorar */
-{WhiteSpace}    { /* Ignorar */ }
-{Comment}       { /* Ignorar */ }
+/* 1. Comentarios (Ignorar) */
+{Comment}       { /* Ignorar, no afecta al punto y coma */ }
 
-/* 2. Estructura Principal (Lo que pediste agregar) */
+/* 2. Espacios en blanco (Ignorar) */
+{WhiteSpace}    { /* Ignorar */ }
+
+/* 3. --- NUEVO: Manejo del Salto de Línea para detectar error --- */
+{LineTerminator} {
+    if (seEsperaPuntoYComa) {
+        // ¡ERROR DETECTADO EN EL LEXER!
+        String msg = "Error Léxico (Validación Escolar): Falta punto y coma ';' al final de la línea.";
+        lexerErrors.add(new TError(yyline, yycolumn, msg));
+        
+        // Reseteamos para no spamear errores
+        seEsperaPuntoYComa = false; 
+    }
+    // No retornamos nada, solo consumimos el salto de línea
+}
+
+/* 4. Estructura y Palabras Clave */
 "program"       { return token(yytext(), "PROGRAM", yyline, yycolumn, sym.PROGRAM); }
 "inicio"        { return token(yytext(), "INICIO", yyline, yycolumn, sym.INICIO); }
 "end"           { return token(yytext(), "END", yyline, yycolumn, sym.END); }
@@ -52,15 +90,17 @@ StringLiteral  = \"([^\\\"]|\\.)*\"
 "salida"        { return token(yytext(), "SALIDA", yyline, yycolumn, sym.SALIDA); }
 "regresa"       { return token(yytext(), "REGRESA", yyline, yycolumn, sym.REGRESA); }
 
-/* 3. Tipos de Datos */
+/* Tipos */
 "num"           { return token(yytext(), "NUM", yyline, yycolumn, sym.NUM); }
 "bool"          { return token(yytext(), "BOOL", yyline, yycolumn, sym.BOOL); }
 "str"           { return token(yytext(), "STR", yyline, yycolumn, sym.STR); }
 "var"           { return token(yytext(), "VAR", yyline, yycolumn, sym.VAR); }
 "const"         { return token(yytext(), "CONST", yyline, yycolumn, sym.CONST); }
 "set"           { return token(yytext(), "SET", yyline, yycolumn, sym.SET); }
+"true"          { return token(yytext(), "TRUE", yyline, yycolumn, sym.TRUE); }
+"false"         { return token(yytext(), "FALSE", yyline, yycolumn, sym.FALSE); }
 
-/* 4. Control de Flujo */
+/* Control */
 "cuando"        { return token(yytext(), "CUANDO", yyline, yycolumn, sym.CUANDO); }
 "sino"          { return token(yytext(), "SINO", yyline, yycolumn, sym.SINO); }
 "mientras"      { return token(yytext(), "MIENTRAS", yyline, yycolumn, sym.MIENTRAS); }
@@ -68,7 +108,7 @@ StringLiteral  = \"([^\\\"]|\\.)*\"
 "salir"         { return token(yytext(), "SALIR", yyline, yycolumn, sym.SALIR); }
 "sigue"         { return token(yytext(), "SIGUE", yyline, yycolumn, sym.SIGUE); }
 
-/* 5. Vehículo y Navegación */
+/* Vehículo */
 "move"          { return token(yytext(), "MOVE", yyline, yycolumn, sym.MOVE); }
 "turn"          { return token(yytext(), "TURN", yyline, yycolumn, sym.TURN); }
 "stop"          { return token(yytext(), "STOP", yyline, yycolumn, sym.STOP); }
@@ -78,20 +118,12 @@ StringLiteral  = \"([^\\\"]|\\.)*\"
 "reverse"       { return token(yytext(), "REVERSE", yyline, yycolumn, sym.REVERSE); }
 "brake"         { return token(yytext(), "BRAKE", yyline, yycolumn, sym.BRAKE); }
 
-"route"         { return token(yytext(), "ROUTE", yyline, yycolumn, sym.ROUTE); }
-"waypoint"      { return token(yytext(), "WAYPOINT", yyline, yycolumn, sym.WAYPOINT); }
-"goto"          { return token(yytext(), "GOTO", yyline, yycolumn, sym.GOTO); }
-"map"           { return token(yytext(), "MAP", yyline, yycolumn, sym.MAP); }
-"navigate"      { return token(yytext(), "NAVIGATE", yyline, yycolumn, sym.NAVIGATE); }
-"destination"   { return token(yytext(), "DESTINATION", yyline, yycolumn, sym.DESTINATION); }
-
-/* 6. Sensores y Comunicación */
+/* Sensores y Comms */
 "sensor"        { return token(yytext(), "SENSOR", yyline, yycolumn, sym.SENSOR); }
 "gps"           { return token(yytext(), "GPS", yyline, yycolumn, sym.GPS); }
 "speed"         { return token(yytext(), "SPEED", yyline, yycolumn, sym.SPEED); }
 "distance"      { return token(yytext(), "DISTANCE", yyline, yycolumn, sym.DISTANCE); }
 "obstacle"      { return token(yytext(), "OBSTACLE", yyline, yycolumn, sym.OBSTACLE); }
-
 "broadcast"     { return token(yytext(), "BROADCAST", yyline, yycolumn, sym.BROADCAST); }
 "receive"       { return token(yytext(), "RECEIVE", yyline, yycolumn, sym.RECEIVE); }
 "message"       { return token(yytext(), "MESSAGE", yyline, yycolumn, sym.MESSAGE); }
@@ -99,14 +131,21 @@ StringLiteral  = \"([^\\\"]|\\.)*\"
 "on"            { return token(yytext(), "ON", yyline, yycolumn, sym.ON); }
 "vehicle_id"    { return token(yytext(), "VEHICLE_ID", yyline, yycolumn, sym.VEHICLE_ID); }
 
-/* 7. Operadores y Signos */
+/* Navegación */
+"route"         { return token(yytext(), "ROUTE", yyline, yycolumn, sym.ROUTE); }
+"waypoint"      { return token(yytext(), "WAYPOINT", yyline, yycolumn, sym.WAYPOINT); }
+"goto"          { return token(yytext(), "GOTO", yyline, yycolumn, sym.GOTO); }
+"map"           { return token(yytext(), "MAP", yyline, yycolumn, sym.MAP); }
+"navigate"      { return token(yytext(), "NAVIGATE", yyline, yycolumn, sym.NAVIGATE); }
+"destination"   { return token(yytext(), "DESTINATION", yyline, yycolumn, sym.DESTINATION); }
+
+/* Operadores (Estos resetean la bandera automáticamente en el 'else' del token()) */
 "=="            { return token(yytext(), "EQ", yyline, yycolumn, sym.EQ); }
 "!="            { return token(yytext(), "NEQ", yyline, yycolumn, sym.NEQ); }
 "<="            { return token(yytext(), "LE", yyline, yycolumn, sym.LE); }
 ">="            { return token(yytext(), "GE", yyline, yycolumn, sym.GE); }
 "&&"            { return token(yytext(), "AND", yyline, yycolumn, sym.AND); }
 "||"            { return token(yytext(), "OR", yyline, yycolumn, sym.OR); }
-
 "+"             { return token(yytext(), "PLUS", yyline, yycolumn, sym.PLUS); }
 "-"             { return token(yytext(), "MINUS", yyline, yycolumn, sym.MINUS); }
 "*"             { return token(yytext(), "MUL", yyline, yycolumn, sym.MUL); }
@@ -117,26 +156,23 @@ StringLiteral  = \"([^\\\"]|\\.)*\"
 ">"             { return token(yytext(), "GT", yyline, yycolumn, sym.GT); }
 "!"             { return token(yytext(), "NOT", yyline, yycolumn, sym.NOT); }
 
+/* Puntuación */
 ";"             { return token(yytext(), "SEMI", yyline, yycolumn, sym.SEMI); }
 ","             { return token(yytext(), "COMMA", yyline, yycolumn, sym.COMMA); }
 "("             { return token(yytext(), "LPAREN", yyline, yycolumn, sym.LPAREN); }
-")"             { return token(yytext(), "RPAREN", yyline, yycolumn, sym.RPAREN); }
+")"             { return token(yytext(), "RPAREN", yyline, yycolumn, sym.RPAREN); } // <- Este activa la bandera en el if del token()
 "{"             { return token(yytext(), "LBRACE", yyline, yycolumn, sym.LBRACE); }
 "}"             { return token(yytext(), "RBRACE", yyline, yycolumn, sym.RBRACE); }
 "["             { return token(yytext(), "LBRACK", yyline, yycolumn, sym.LBRACK); }
 "]"             { return token(yytext(), "RBRACK", yyline, yycolumn, sym.RBRACK); }
 
-/*7.5. True y False*/
-"true"          { return token(yytext(), "TRUE", yyline, yycolumn, sym.TRUE); }
-"false"          { return token(yytext(), "FALSE", yyline, yycolumn, sym.FALSE); }
-
-/* 8. Dinámicos */
+/* Dinámicos (Estos activan la bandera) */
 {NumberLiteral} { return token(yytext(), "NUMBER", yyline, yycolumn, sym.NUMBER); }
 {StringLiteral} { return token(yytext(), "STRING", yyline, yycolumn, sym.STRING); }
 {Identifier}    { return token(yytext(), "ID", yyline, yycolumn, sym.ID); }
 
+/* Errores */
 . {
-    // Guardamos el error en la lista antes de devolver el token
     lexerErrors.add(new TError(yyline+1, yycolumn+1, "Error Léxico: Caracter inválido '" + yytext() + "'"));
     return token(yytext(), "ERROR", yyline, yycolumn, sym.ERROR);
 }

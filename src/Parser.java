@@ -339,7 +339,7 @@ public class Parser extends java_cup.runtime.lr_parser {
             lexema = "Fin de Archivo";
             // Si por alguna razón JFlex falla y manda -1, forzamos un 0 o mensaje
             if (linea == -1) { 
-                mensajeBase = mensajeBase + " (Final inesperado)"; 
+                //mensajeBase = mensajeBase + " (Final inesperado)"; 
                 // Opcional: intentar usar una variable estática global para la última línea conocida
             }
         } else if (s.value != null && s.value instanceof Token) {
@@ -356,12 +356,12 @@ public class Parser extends java_cup.runtime.lr_parser {
 
     // Error recuperable
     public void syntax_error(Symbol s) {
-        errors.add(crearError(s, "Error Sintáctico: No se esperaba"));
+        //errors.add(crearError(s, "Error Sintáctico: No se esperaba"));
     }
 
     // Error fatal
     public void unrecovered_syntax_error(Symbol s) {
-        errors.add(crearError(s, "Error Fatal: Estructura incompleta o inesperada cerca de"));
+        //errors.add(crearError(s, "Error Fatal: Estructura incompleta o inesperada cerca de"));
     }
 
 

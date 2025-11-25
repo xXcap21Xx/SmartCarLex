@@ -17,7 +17,7 @@ program DemoSimple {
             turn(90);
             accelerate(10);
         }
-        
+
         // 4. Finalizar
         stop;
     }

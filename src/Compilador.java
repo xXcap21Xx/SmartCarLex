@@ -43,6 +43,7 @@ public class Compilador extends javax.swing.JFrame {
     private Directory Directorio;
     private ArrayList<Token> tokens;
     private ArrayList<TError> errors;
+    private ArrayList<Simbolo> tablaSimbolos = new ArrayList<>();
     private ArrayList<TextColor> textsColor;
     private Timer timerKeyReleased;
     private ArrayList<Production> identProd;
@@ -90,11 +91,10 @@ public class Compilador extends javax.swing.JFrame {
     }
 
     private void llenarTablaTokens(ArrayList<Token> tokens) {
-        // 1. Obtener el modelo de la tabla (asegúrate que tu tabla se llame tbl_Tokens o tbl_Componentes)
         DefaultTableModel modelo = (DefaultTableModel) tbl_Token.getModel();
         modelo.setRowCount(0); // Limpiar tabla anterior
 
-        // 2. Recorrer la lista y agregar filas
+        // Recorrer la lista y agregar filas
         for (Token t : tokens) {
             Object[] fila = new Object[]{
                 t.getLexeme(), // Columna 1: Componente léxico (lo que se escribió)
@@ -168,6 +168,7 @@ public class Compilador extends javax.swing.JFrame {
         tokens.clear();
         errors.clear();
         errors = new ArrayList<>();
+        tablaSimbolos.clear();
         //identProd.clear();
         //identificadores.clear();
         codeHasBeenCompiled = false;
@@ -219,7 +220,6 @@ public class Compilador extends javax.swing.JFrame {
                 }
             }
 
-            // AQUÍ ESTÁ LA CLAVE: 
             // Recuperamos los errores léxicos que tu Lexer ya detectó (el escenario A)
             errors.addAll(lexer.lexerErrors);
 
@@ -290,7 +290,7 @@ public class Compilador extends javax.swing.JFrame {
 
         } catch (Exception ex) {
             // Si el parser explota, lo mostramos como error fatal
-            errors.add(new TError(0, 0, "Error Fatal de Sintaxis: " + ex.getMessage()));
+            //errors.add(new TError(0, 0, "Error Fatal de Sintaxis: " + ex.getMessage()));
         }
 
         /*
@@ -327,7 +327,90 @@ public class Compilador extends javax.swing.JFrame {
     }
 
     private void semanticAnalysis() {
+        tablaSimbolos.clear(); // Limpiar tabla anterior
 
+        // Recorremos la lista de tokens
+        for (int i = 0; i < tokens.size(); i++) {
+            Token t = tokens.get(i);
+            String tipoToken = t.getLexicalComp(); // ID, NUMBER, STRING, VAR...
+            String lexema = t.getLexeme();         // "x", "10", "hola"...
+            int linea = t.getLine();
+            int columna = t.getColumn();
+
+            // -----------------------------------------------------------
+            // CASO 1: DECLARACIONES DE VARIABLES (num x, var y, const z)
+            // -----------------------------------------------------------
+            if (tipoToken.equals("NUM") || tipoToken.equals("BOOL") || tipoToken.equals("STR")
+                    || tipoToken.equals("VAR") || tipoToken.equals("CONST") || tipoToken.equals("ROUTE")
+                    || tipoToken.equals("SET")) {
+
+                // Miramos adelante: ¿Sigue un ID?
+                if (i + 1 < tokens.size()) {
+                    Token nextToken = tokens.get(i + 1);
+
+                    if (nextToken.getLexicalComp().equals("ID")) {
+                        String nombreVar = nextToken.getLexeme();
+                        String valorVar = "Indefinido";
+
+                        // Intentamos buscar su valor inicial ( = valor )
+                        if (i + 3 < tokens.size()) {
+                            Token igual = tokens.get(i + 2);
+                            Token valor = tokens.get(i + 3);
+
+                            // Si hay un signo de igual
+                            if (igual.getLexeme().equals("=") || igual.getLexicalComp().equals("ASSIGN")) {
+                                valorVar = valor.getLexeme();
+                            }
+                        }
+
+                        agregarSimboloSiNoExiste(nombreVar, "Variable (" + lexema + ")", valorVar, nextToken.getLine(), nextToken.getColumn());
+                    }
+                }
+            } // -----------------------------------------------------------
+            // CASO 2: RUTINAS Y MÉTODOS
+            // -----------------------------------------------------------
+            else if (tipoToken.equals("RUTINA") || tipoToken.equals("METODO")) {
+                if (i + 1 < tokens.size()) {
+                    Token nextToken = tokens.get(i + 1);
+                    if (nextToken.getLexicalComp().equals("ID")) {
+                        agregarSimboloSiNoExiste(nextToken.getLexeme(), "Rutina/Función", "Código", nextToken.getLine(), nextToken.getColumn());
+                    }
+                }
+            } // -----------------------------------------------------------
+            // CASO 3: LITERALES (Strings, Números Int/Float, Booleanos)
+            // -----------------------------------------------------------
+            else if (tipoToken.equals("STRING")) {
+                // Detectamos que es una cadena constante
+                agregarSimboloSiNoExiste(lexema, "Constante String", lexema, linea, columna);
+            } else if (tipoToken.equals("NUMBER")) {
+                // Diferenciamos visualmente entre Int y Float buscando el punto
+                String subTipo = lexema.contains(".") ? "Constante Float" : "Constante Int";
+                agregarSimboloSiNoExiste(lexema, subTipo, lexema, linea, columna);
+            } else if (tipoToken.equals("TRUE") || tipoToken.equals("FALSE")) {
+                agregarSimboloSiNoExiste(lexema, "Constante Bool", lexema, linea, columna);
+            } // -----------------------------------------------------------
+            // CASO 4: EVENTOS Y OBJETOS DEL SISTEMA
+            // -----------------------------------------------------------
+            else if (tipoToken.equals("SENSOR") || tipoToken.equals("GPS")) {
+                agregarSimboloSiNoExiste(lexema, "Objeto de Sistema", "Hardware", linea, columna);
+            }
+        }
+    }
+
+// --- MÉTODO AUXILIAR PARA NO REPETIR CÓDIGO ---
+    private void agregarSimboloSiNoExiste(String nombre, String tipo, String valor, int linea, int columna) {
+        boolean existe = false;
+        for (Simbolo s : tablaSimbolos) {
+            // Validamos si ya existe ese nombre exacto para no duplicar filas
+            if (s.nombre.equals(nombre) && s.tipo.equals(tipo)) {
+                existe = true;
+                break;
+            }
+        }
+
+        if (!existe) {
+            tablaSimbolos.add(new Simbolo(nombre, tipo, valor, linea, columna));
+        }
     }
 
     private void printAST(ASTNode node, String indent) {
@@ -402,6 +485,7 @@ public class Compilador extends javax.swing.JFrame {
         panel_Salida = new javax.swing.JTextPane();
         jScrollPane4 = new javax.swing.JScrollPane();
         tbl_Token = new javax.swing.JTable();
+        btn_tablaSimbolos = new javax.swing.JButton();
 
         jTextArea1.setColumns(20);
         jTextArea1.setRows(5);
@@ -536,6 +620,13 @@ public class Compilador extends javax.swing.JFrame {
         ));
         jScrollPane4.setViewportView(tbl_Token);
 
+        btn_tablaSimbolos.setText("Simbolos");
+        btn_tablaSimbolos.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btn_tablaSimbolosActionPerformed(evt);
+            }
+        });
+
         javax.swing.GroupLayout panel_PrincipalLayout = new javax.swing.GroupLayout(panel_Principal);
         panel_Principal.setLayout(panel_PrincipalLayout);
         panel_PrincipalLayout.setHorizontalGroup(
@@ -546,7 +637,9 @@ public class Compilador extends javax.swing.JFrame {
                     .addComponent(jScrollPane3)
                     .addGroup(panel_PrincipalLayout.createSequentialGroup()
                         .addComponent(panel_botones, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addGap(147, 147, 147)
+                        .addGap(66, 66, 66)
+                        .addComponent(btn_tablaSimbolos)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(panel_botones_exec_comp, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                     .addComponent(jScrollPane1))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
@@ -555,19 +648,20 @@ public class Compilador extends javax.swing.JFrame {
         );
         panel_PrincipalLayout.setVerticalGroup(
             panel_PrincipalLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(panel_PrincipalLayout.createSequentialGroup()
-                .addContainerGap()
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, panel_PrincipalLayout.createSequentialGroup()
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                 .addGroup(panel_PrincipalLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
                     .addGroup(panel_PrincipalLayout.createSequentialGroup()
                         .addGroup(panel_PrincipalLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                             .addComponent(panel_botones_exec_comp, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addComponent(panel_botones, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                            .addComponent(panel_botones, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(btn_tablaSimbolos))
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                         .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 245, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(jScrollPane3, javax.swing.GroupLayout.PREFERRED_SIZE, 136, javax.swing.GroupLayout.PREFERRED_SIZE))
                     .addComponent(jScrollPane4))
-                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addContainerGap())
         );
 
         getContentPane().add(panel_Principal);
@@ -619,6 +713,19 @@ public class Compilador extends javax.swing.JFrame {
 
         }
     }//GEN-LAST:event_btn_EjecutarActionPerformed
+
+    private void btn_tablaSimbolosActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btn_tablaSimbolosActionPerformed
+        // TODO add your handling code here:
+        // Validamos que se haya compilado primero
+        if (!codeHasBeenCompiled) {
+            JOptionPane.showMessageDialog(this, "Debes compilar el código primero para generar la tabla.");
+            return;
+        }
+
+        // Abrimos la ventana pasando la lista llena
+        VentanaTablaSimbolos ventana = new VentanaTablaSimbolos(tablaSimbolos);
+        ventana.setVisible(true);
+    }//GEN-LAST:event_btn_tablaSimbolosActionPerformed
 
     private void btn_VerArbolActionPerformed(java.awt.event.ActionEvent evt) {
         try {
@@ -674,6 +781,7 @@ public class Compilador extends javax.swing.JFrame {
     private javax.swing.JButton btn_GuardarC;
     private javax.swing.JButton btn_Nuevo;
     private javax.swing.JButton btn_VerArbol;
+    private javax.swing.JButton btn_tablaSimbolos;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JScrollPane jScrollPane2;
     private javax.swing.JScrollPane jScrollPane3;
