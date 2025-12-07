@@ -984,7 +984,7 @@ private Symbol token(String lexeme, String lexicalComp, int line, int column, in
         switch (zzAction < 0 ? zzAction : ZZ_ACTION[zzAction]) {
           case 1:
             { lexerErrors.add(new TError(yyline+1, yycolumn+1, "Error Léxico: Caracter inválido '" + yytext() + "'"));
-    return token(yytext(), "ERROR", yyline, yycolumn, sym.ERROR);
+    return token(yytext(), "ERROR", yyline, yycolumn, sym.error);
             }
           // fall through
           case 78: break;
@@ -996,7 +996,7 @@ private Symbol token(String lexeme, String lexicalComp, int line, int column, in
           case 3:
             { if (seEsperaPuntoYComa) {
         // ¡ERROR DETECTADO EN EL LEXER!
-        String msg = "Error Léxico (Validación Escolar): Falta punto y coma ';' al final de la línea.";
+        String msg = "Error Léxico: Falta punto y coma ';' al final de la línea.";
         lexerErrors.add(new TError(yyline, yycolumn, msg));
         
         // Reseteamos para no spamear errores

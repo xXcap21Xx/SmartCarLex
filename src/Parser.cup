@@ -1,14 +1,12 @@
 import java.util.ArrayList;
 import java.util.List;
-import compilerTools.Token; // IMPORTANTE: Importar tu clase Token
+import compilerTools.Token;
 import compilerTools.ASTNode;
 import java_cup.runtime.*;
 
 parser code {:
-    // Lista de errores
     public java.util.List<TError> errors = new java.util.ArrayList<>();
 
-    // Método auxiliar para extraer coordenadas seguras
     private TError crearError(Symbol s, String mensajeBase) {
         int linea = s.left;
         int columna = s.right;
@@ -16,70 +14,58 @@ parser code {:
         
         if (s.sym == sym.EOF) {
             lexema = "Fin de Archivo";
-            // Si por alguna razón JFlex falla y manda -1, forzamos un 0 o mensaje
-            if (linea == -1) { 
-                mensajeBase = mensajeBase + " (Final inesperado)"; 
-                // Opcional: intentar usar una variable estática global para la última línea conocida
-            }
+            if (linea == -1) { linea = 0; columna = 0; }
         } else if (s.value != null && s.value instanceof Token) {
             Token t = (Token) s.value;
             linea = t.getLine();
             columna = t.getColumn();
             lexema = t.getLexeme();
         } else {
-            lexema = (s.value != null) ? s.value.toString() : "Token desconocido";
+            lexema = (s.value != null && !(s.value instanceof String)) ? s.value.toString() : "Token desconocido";
         }
         
         return new TError(linea, columna, mensajeBase + " '" + lexema + "'");
     }
 
-    // Error recuperable
     public void syntax_error(Symbol s) {
         errors.add(crearError(s, "Error Sintáctico: No se esperaba"));
     }
 
-    // Error fatal
     public void unrecovered_syntax_error(Symbol s) {
-        errors.add(crearError(s, "Error Fatal: Estructura incompleta o inesperada cerca de"));
+        errors.add(crearError(s, "Error Fatal: Estructura incompleta cerca de"));
     }
-:}
+:};
 
-/* ====================== TERMINALES ====================== */
-// Estructura
-terminal PROGRAM, INICIO, END, METODO, RUTINA, ENTRADA, SALIDA, REGRESA;
-terminal NUM, BOOL, STR, VAR, CONST, SET;
-terminal TRUE, FALSE;
-
-// Control
+/* ====================== 1. TERMINALES ====================== */
+terminal PROGRAM, INICIO, END, METODO, RUTINA, REGRESA;
+terminal ENTRADA, SALIDA;
+terminal CONST, SET, VAR;
+terminal NUM, BOOL, STR; 
 terminal CUANDO, SINO, MIENTRAS, LOOP, SALIR, SIGUE;
-
-// Vehículo
 terminal MOVE, TURN, STOP, WAIT, ACCEL, DECEL, REVERSE, BRAKE;
-
-// Sensores y Comunicación
 terminal SENSOR, GPS, SPEED, DISTANCE, OBSTACLE;
 terminal BROADCAST, RECEIVE, MESSAGE, EVENT, ON, VEHICLE_ID;
-
-// Navegación
 terminal ROUTE, WAYPOINT, GOTO, MAP, NAVIGATE, DESTINATION;
-
-// Operadores
-terminal EQ, NEQ, LE, GE, AND, OR, NOT;
-terminal PLUS, MINUS, MUL, DIV, MOD, ASSIGN, LT, GT;
-
-// Puntuación
-terminal SEMI, COMMA, LPAREN, RPAREN, LBRACE, RBRACE, LBRACK, RBRACK;
-
-// *** CORRECCIÓN: Usamos 'Token' porque el Lexer devuelve objetos Token, no Strings puros ***
+terminal TRUE, FALSE;
 terminal Token ID, STRING, NUMBER;
 
-/* ====================== NO TERMINALES ====================== */
-non terminal ASTNode program, main_block, block, statement_list, statement;
-non terminal ASTNode declaration, assignment, flow_control, io_stmt;
-non terminal ASTNode vehicle_cmd, nav_cmd, comm_cmd;
-non terminal ASTNode expression, arguments, type;
+terminal PLUS, MINUS, MUL, DIV, MOD, ASSIGN;
+terminal EQ, NEQ, LT, GT, LE, GE, AND, OR, NOT;
+terminal SEMI, COMMA, LPAREN, RPAREN, LBRACE, RBRACE, LBRACK, RBRACK;
 
-/* ====================== PRECEDENCIA ====================== */
+/* ====================== 2. NO TERMINALES ====================== */
+non terminal ASTNode S;
+non terminal ASTNode definiciones_principales, definicion;
+non terminal ASTNode parametros_opc, parametros, parametro;
+non terminal ASTNode sentencias_bloque, sentencia_completa;
+non terminal ASTNode declaracion, inicializacion_opc, tipo;
+non terminal ASTNode sentencia, asignacion, flujo, sino_opt, bloque_interno;
+non terminal ASTNode accion, valor_accion;
+non terminal ASTNode e_s, llamada, argumentos_opc, argumentos;
+non terminal ASTNode expresion, expresion_simple, termino, factor, unario;
+non terminal ASTNode bloque_mapa, ruta, valor_sensor, tipo_sensor, evento;
+
+/* ====================== 3. PRECEDENCIA ====================== */
 precedence left OR;
 precedence left AND;
 precedence left EQ, NEQ;
@@ -89,141 +75,313 @@ precedence left MUL, DIV, MOD;
 precedence right NOT;
 precedence nonassoc SINO; 
 
-/* ====================== GRAMÁTICA ====================== */
+/* ====================== 4. GRAMÁTICA ====================== */
 
-start with program;
+start with S;
 
-// Nota: Ahora 'name' es un objeto Token, usamos name.getLexeme()
-program ::= 
-    PROGRAM ID:name LBRACE main_block:mb RBRACE
+S ::= 
+    PROGRAM ID:id LBRACE definiciones_principales:defs INICIO LBRACE sentencias_bloque:sents RBRACE END RBRACE
     {: 
-        ASTNode node = new ASTNode("Program: " + name.getLexeme());
-        node.addChild(mb);
-        RESULT = node; 
+       ASTNode n = new ASTNode("Program: " + id.getLexeme());
+       if(defs != null) {
+           for(ASTNode child : defs.children) n.addChild(child);
+       }
+       ASTNode mainNode = new ASTNode("Inicio");
+       if(sents != null) {
+           for(ASTNode child : sents.children) mainNode.addChild(child);
+       }
+       n.addChild(mainNode);
+       RESULT = n; 
     :}
     ;
 
-main_block ::= 
-    INICIO block:b
+/* --- DEFINICIONES --- */
+definiciones_principales ::= 
+    definicion:d definiciones_principales:sig
     {: 
-        ASTNode node = new ASTNode("Inicio");
-        node.addChild(b);
-        RESULT = node; 
+       if (sig != null) {
+           sig.children.add(0, d); 
+           RESULT = sig;
+       } else {
+           ASTNode n = new ASTNode("Definiciones");
+           n.addChild(d);
+           RESULT = n;
+       }
     :}
+    | /* epsilon */ {: RESULT = new ASTNode("Definiciones"); :} 
     ;
 
-block ::= 
-    LBRACE statement_list:s RBRACE {: RESULT = s; :}
-    | LBRACE RBRACE {: RESULT = new ASTNode("EmptyBlock"); :}
-    ;
-
-statement_list ::= 
-      statement_list:list statement:s
-      {: list.addChild(s); RESULT = list; :}
-    | statement:s
+definicion ::= 
+      METODO ID:id LPAREN parametros_opc:p RPAREN LBRACE sentencias_bloque:sb RBRACE
       {: 
-         ASTNode node = new ASTNode("Statements");
-         node.addChild(s);
-         RESULT = node; 
-      :}
-    ;
-
-statement ::= 
-      declaration:d     {: RESULT = d; :}
-    | assignment:a      {: RESULT = a; :}
-    | flow_control:f    {: RESULT = f; :}
-    | vehicle_cmd:v SEMI {: RESULT = v; :} 
-    | nav_cmd:n SEMI    {: RESULT = n; :}
-    | comm_cmd:c SEMI   {: RESULT = c; :}
-    | io_stmt:io SEMI   {: RESULT = io; :}
-    | ID:id LPAREN arguments:args RPAREN SEMI 
-      {: ASTNode n = new ASTNode("Call: " + id.getLexeme()); n.addChild(args); RESULT = n; :}
-    | error SEMI        {: RESULT = new ASTNode("ErrorRecuperado"); :}
-    ;
-
-/* --- Declaraciones --- */
-declaration ::= 
-      type:t ID:id ASSIGN expression:e SEMI
-      {: 
-         ASTNode n = new ASTNode("DeclVar: " + id.getLexeme());
-         n.addChild(t);
-         n.addChild(e);
+         ASTNode n = new ASTNode("Metodo: " + id.getLexeme());
+         if (p != null && !p.children.isEmpty()) n.addChild(p);
+         if(sb!=null) {
+            for(ASTNode child : sb.children) n.addChild(child);
+         }
          RESULT = n; 
       :}
-    | VAR ID:id ASSIGN expression:e SEMI
-      {: ASTNode n = new ASTNode("VarDynamic: " + id.getLexeme()); n.addChild(e); RESULT = n; :}
+    | RUTINA ID:id LBRACE sentencias_bloque:sb RBRACE
+      {: 
+         ASTNode n = new ASTNode("Rutina: " + id.getLexeme());
+         if(sb!=null) {
+            for(ASTNode child : sb.children) n.addChild(child);
+         }
+         RESULT = n; 
+      :}
     ;
 
-type ::= 
-      NUM   {: RESULT = new ASTNode("Type:Num"); :}
-    | BOOL  {: RESULT = new ASTNode("Type:Bool"); :}
-    | STR   {: RESULT = new ASTNode("Type:Str"); :}
+/* --- PARÁMETROS --- */
+parametros_opc ::= parametros:p {: RESULT = p; :} | /* epsilon */ {: RESULT = new ASTNode("Params"); :};
+
+parametros ::= 
+      parametro:p COMMA parametros:sig 
+      {: 
+         if (sig != null) {
+             sig.children.add(0, p);
+             RESULT = sig;
+         } else {
+             ASTNode n = new ASTNode("Params");
+             n.addChild(p);
+             RESULT = n;
+         }
+      :}
+    | parametro:p 
+      {: ASTNode n = new ASTNode("Params"); n.addChild(p); RESULT = n; :}
     ;
 
-/* --- Asignaciones --- */
-assignment ::= 
-      ID:id ASSIGN expression:e SEMI
-      {: ASTNode n = new ASTNode("Assign: " + id.getLexeme()); n.addChild(e); RESULT = n; :}
-    | SET ID:id ASSIGN expression:e SEMI
+parametro ::= tipo:t ID:id {: ASTNode n = new ASTNode("Param: " + id.getLexeme()); n.addChild(t); RESULT = n; :};
+
+/* --- BLOQUES --- */
+sentencias_bloque ::= 
+    sentencia_completa:s sentencias_bloque:sig
+    {: 
+       if (sig != null) {
+           if (s != null) sig.children.add(0, s);
+           RESULT = sig;
+       } else {
+           ASTNode n = new ASTNode("Bloque");
+           if (s != null) n.addChild(s);
+           RESULT = n;
+       }
+    :}
+    | /* epsilon */ {: RESULT = new ASTNode("Bloque"); :}
+    ;
+
+sentencia_completa ::= 
+      declaracion:d {: RESULT = d; :}
+    | sentencia:s   {: RESULT = s; :}
+    | error SEMI    {: RESULT = null; :} 
+    ;
+
+/* --- DECLARACIONES --- */
+declaracion ::= 
+      // Declaración normal: num x = 10;
+      tipo:t ID:id inicializacion_opc:init SEMI
+      {: 
+         ASTNode n = new ASTNode("Decl: " + id.getLexeme());
+         n.addChild(t); 
+         if(init != null) n.addChild(init); 
+         RESULT = n; 
+      :}
+      
+    // Declaración de ARREGLOS: num lista[5];
+    // CORRECCIÓN AQUÍ: Cambiamos 'ASTNode n' por 'ASTNode node' para no chocar con 'NUMBER:n'
+    | tipo:t ID:id LBRACK NUMBER:n RBRACK SEMI
+      {: 
+         ASTNode node = new ASTNode("ArrayDecl: " + id.getLexeme()); 
+         node.addChild(t); 
+         // Ahora sí, 'n' se refiere al token NUMBER
+         node.addChild(new ASTNode("Size: " + n.getLexeme()));
+         RESULT = node; 
+      :}
+      
+    | CONST ID:id ASSIGN expresion:e SEMI
+      {: ASTNode n = new ASTNode("Const: " + id.getLexeme()); n.addChild(e); RESULT = n; :}
+    | SET ID:id ASSIGN expresion:e SEMI
       {: ASTNode n = new ASTNode("Set: " + id.getLexeme()); n.addChild(e); RESULT = n; :}
     ;
 
-/* --- IO --- */
-io_stmt ::= 
-      SALIDA LPAREN expression:e RPAREN {: ASTNode n = new ASTNode("Salida"); n.addChild(e); RESULT = n; :}
+inicializacion_opc ::= ASSIGN expresion:e {: RESULT = e; :} | /* epsilon */ {: RESULT = null; :};
+
+tipo ::= 
+      NUM {: RESULT = new ASTNode("Type:Num"); :}
+    | BOOL {: RESULT = new ASTNode("Type:Bool"); :}
+    | STR {: RESULT = new ASTNode("Type:Str"); :}
     ;
 
-/* --- Control de Flujo --- */
-flow_control ::= 
-      CUANDO LPAREN expression:c RPAREN block:b1 SINO block:b2
-      {: ASTNode n = new ASTNode("If-Else"); n.addChild(c); n.addChild(b1); n.addChild(b2); RESULT = n; :}
-    | CUANDO LPAREN expression:c RPAREN block:b1
-      {: ASTNode n = new ASTNode("If"); n.addChild(c); n.addChild(b1); RESULT = n; :}
-    | MIENTRAS LPAREN expression:c RPAREN block:b
-      {: ASTNode n = new ASTNode("While"); n.addChild(c); n.addChild(b); RESULT = n; :}
-    | LOOP LPAREN expression:e RPAREN block:b
-      {: ASTNode n = new ASTNode("Loop"); n.addChild(e); n.addChild(b); RESULT = n; :}
+/* --- SENTENCIAS --- */
+sentencia ::= 
+      asignacion:a  {: RESULT = a; :}
+    | flujo:f       {: RESULT = f; :}
+    | llamada:l     {: RESULT = l; :}
+    | e_s:io        {: RESULT = io; :}
+    | accion:ac     {: RESULT = ac; :}
+    | bloque_mapa:bm {: RESULT = bm; :}
+    | evento:ev     {: RESULT = ev; :}
+    | REGRESA expresion:e SEMI {: ASTNode n = new ASTNode("Return"); n.addChild(e); RESULT = n; :}
+    | SEMI          {: RESULT = null; :}
     ;
 
-/* --- Comandos Vehículo --- */
-vehicle_cmd ::= 
-      MOVE LPAREN expression:e RPAREN {: ASTNode n = new ASTNode("Move"); n.addChild(e); RESULT = n; :}
-    | TURN LPAREN expression:e RPAREN {: ASTNode n = new ASTNode("Turn"); n.addChild(e); RESULT = n; :}
-    | STOP {: RESULT = new ASTNode("Stop"); :} 
-    | BRAKE {: RESULT = new ASTNode("Brake"); :}
-    | ACCEL LPAREN expression:e RPAREN {: ASTNode n = new ASTNode("Accel"); n.addChild(e); RESULT = n; :}
-    | WAIT LPAREN expression:e RPAREN  {: ASTNode n = new ASTNode("Wait"); n.addChild(e); RESULT = n; :}
+/* --- ASIGNACIÓN --- */
+asignacion ::= 
+      ID:id ASSIGN expresion:e SEMI 
+      {: ASTNode n = new ASTNode("Assign: " + id.getLexeme()); n.addChild(e); RESULT = n; :}
+      
+    // Asignación a arreglo: lista[0] = 1;
+    | ID:id LBRACK expresion:idx RBRACK ASSIGN expresion:val SEMI
+      {: ASTNode n = new ASTNode("ArraySet: " + id.getLexeme()); n.addChild(idx); n.addChild(val); RESULT = n; :}
     ;
 
-nav_cmd ::= 
-      GOTO LPAREN expression:e RPAREN {: ASTNode n = new ASTNode("Goto"); n.addChild(e); RESULT = n; :}
-    ;
-
-comm_cmd ::= 
-      BROADCAST LPAREN expression:e RPAREN {: ASTNode n = new ASTNode("Broadcast"); n.addChild(e); RESULT = n; :}
-    ;
-
-/* --- Expresiones --- */
-expression ::= 
-      expression:e1 PLUS expression:e2   {: ASTNode n = new ASTNode("+"); n.addChild(e1); n.addChild(e2); RESULT = n; :}
-    | expression:e1 MINUS expression:e2  {: ASTNode n = new ASTNode("-"); n.addChild(e1); n.addChild(e2); RESULT = n; :}
-    | expression:e1 MUL expression:e2    {: ASTNode n = new ASTNode("*"); n.addChild(e1); n.addChild(e2); RESULT = n; :}
-    | expression:e1 EQ expression:e2     {: ASTNode n = new ASTNode("=="); n.addChild(e1); n.addChild(e2); RESULT = n; :}
-    | expression:e1 LT expression:e2     {: ASTNode n = new ASTNode("<"); n.addChild(e1); n.addChild(e2); RESULT = n; :}
-    | expression:e1 GT expression:e2     {: ASTNode n = new ASTNode(">"); n.addChild(e1); n.addChild(e2); RESULT = n; :}
-    | SENSOR LPAREN OBSTACLE RPAREN      {: RESULT = new ASTNode("Sensor:Obstacle"); :}
-    | SENSOR LPAREN DISTANCE RPAREN      {: RESULT = new ASTNode("Sensor:Distance"); :}
+/* --- CONTROL DE FLUJO --- */
+flujo ::= 
+      CUANDO LPAREN expresion:e RPAREN bloque_interno:b sino_opt:s
+      {: ASTNode n = new ASTNode("Cuando"); n.addChild(e); n.addChild(b); if(s!=null) n.addChild(s); RESULT = n; :}
+    | MIENTRAS LPAREN expresion:e RPAREN bloque_interno:b
+      {: ASTNode n = new ASTNode("Mientras"); n.addChild(e); n.addChild(b); RESULT = n; :}
     
-    /* Corrección aquí también: extraemos el lexema del Token */
-    | NUMBER:n {: RESULT = new ASTNode("Num: " + n.getLexeme()); :}
-    | STRING:s {: RESULT = new ASTNode("Str: " + s.getLexeme()); :}
-    | ID:id    {: RESULT = new ASTNode("ID: " + id.getLexeme()); :}
-    | TRUE     {: RESULT = new ASTNode("True"); :}
-    | FALSE    {: RESULT = new ASTNode("False"); :}
+    // Loop infinito o simple
+    | LOOP bloque_interno:b
+      {: ASTNode n = new ASTNode("Loop"); n.addChild(b); RESULT = n; :}
+      
+    // Loop con conteo: loop(5)
+    | LOOP LPAREN expresion:e RPAREN bloque_interno:b
+      {: ASTNode n = new ASTNode("Loop"); n.addChild(e); n.addChild(b); RESULT = n; :}
+      
+    | SALIR SEMI {: RESULT = new ASTNode("Break"); :}
+    | SIGUE SEMI {: RESULT = new ASTNode("Continue"); :}
     ;
 
-arguments ::= 
-      arguments:list COMMA expression:e {: list.addChild(e); RESULT = list; :}
-    | expression:e {: ASTNode n = new ASTNode("Args"); n.addChild(e); RESULT = n; :}
-    | /* vacio */ {: RESULT = new ASTNode("NoArgs"); :}
+sino_opt ::= SINO bloque_interno:b {: RESULT = b; :} | /* epsilon */ {: RESULT = null; :};
+
+bloque_interno ::= 
+      LBRACE sentencias_bloque:sb RBRACE {: RESULT = sb; :}
+    | sentencia_completa:s {: ASTNode n = new ASTNode("Bloque"); if(s!=null) n.addChild(s); RESULT = n; :}
     ;
+
+llamada ::= 
+    ID:id LPAREN argumentos_opc:args RPAREN SEMI 
+    {: ASTNode n = new ASTNode("Call: " + id.getLexeme()); if(!args.children.isEmpty()) n.addChild(args); RESULT = n; :}
+    ;
+
+argumentos_opc ::= argumentos:a {: RESULT = a; :} | /* epsilon */ {: RESULT = new ASTNode("Args"); :};
+
+argumentos ::= 
+      expresion:e COMMA argumentos:sig 
+      {: 
+         if (sig != null) {
+             sig.children.add(0, e);
+             RESULT = sig;
+         } else {
+             ASTNode n = new ASTNode("Args");
+             n.addChild(e);
+             RESULT = n;
+         }
+      :}
+    | expresion:e {: ASTNode n = new ASTNode("Args"); n.addChild(e); RESULT = n; :}
+    ;
+
+e_s ::= 
+      SALIDA LPAREN expresion:e RPAREN SEMI {: ASTNode n = new ASTNode("Salida"); n.addChild(e); RESULT = n; :}
+    | ENTRADA LPAREN ID:id RPAREN SEMI {: ASTNode n = new ASTNode("Entrada: " + id.getLexeme()); RESULT = n; :}
+    ;
+
+accion ::= 
+      MOVE valor_accion:v SEMI {: ASTNode n = new ASTNode("Move"); if(v!=null) n.addChild(v); RESULT = n; :}
+    | TURN valor_accion:v SEMI {: ASTNode n = new ASTNode("Turn"); if(v!=null) n.addChild(v); RESULT = n; :}
+    | STOP SEMI {: RESULT = new ASTNode("Stop"); :}
+    | ACCEL SEMI {: RESULT = new ASTNode("Action:Accel"); :}
+    | DECEL SEMI {: RESULT = new ASTNode("Action:Decel"); :}
+    | REVERSE SEMI {: RESULT = new ASTNode("Action:Reverse"); :}
+    | BRAKE SEMI {: RESULT = new ASTNode("Action:Brake"); :}
+    | WAIT LPAREN expresion:e RPAREN SEMI {: ASTNode n = new ASTNode("Wait"); n.addChild(e); RESULT = n; :}
+    | BROADCAST LPAREN expresion:e RPAREN SEMI {: ASTNode n = new ASTNode("Broadcast"); n.addChild(e); RESULT = n; :}
+    | RECEIVE LPAREN ID:id RPAREN SEMI {: ASTNode n = new ASTNode("Receive -> " + id.getLexeme()); RESULT = n; :}
+    ;
+
+valor_accion ::= LPAREN expresion:e RPAREN {: RESULT = e; :} | /* epsilon */ {: RESULT = null; :};
+
+/* --- EXPRESIONES --- */
+expresion ::= 
+      // LÓGICA BOOLEANA (Recursiva sobre 'expresion' para permitir cadenas)
+      expresion:e1 AND expresion:e2 {: ASTNode n = new ASTNode("&&"); n.addChild(e1); n.addChild(e2); RESULT = n; :}
+    | expresion:e1 OR expresion:e2  {: ASTNode n = new ASTNode("||"); n.addChild(e1); n.addChild(e2); RESULT = n; :}
+    
+    // COMPARACIONES (Estas comparan valores numéricos/simples, devuelven booleano)
+    | expresion_simple:e1 EQ expresion_simple:e2  {: ASTNode n = new ASTNode("=="); n.addChild(e1); n.addChild(e2); RESULT = n; :}
+    | expresion_simple:e1 NEQ expresion_simple:e2 {: ASTNode n = new ASTNode("!="); n.addChild(e1); n.addChild(e2); RESULT = n; :}
+    | expresion_simple:e1 LT expresion_simple:e2  {: ASTNode n = new ASTNode("<"); n.addChild(e1); n.addChild(e2); RESULT = n; :}
+    | expresion_simple:e1 GT expresion_simple:e2  {: ASTNode n = new ASTNode(">"); n.addChild(e1); n.addChild(e2); RESULT = n; :}
+    | expresion_simple:e1 LE expresion_simple:e2  {: ASTNode n = new ASTNode("<="); n.addChild(e1); n.addChild(e2); RESULT = n; :}
+    | expresion_simple:e1 GE expresion_simple:e2  {: ASTNode n = new ASTNode(">="); n.addChild(e1); n.addChild(e2); RESULT = n; :}
+    
+    // Caso base (baja a aritmética)
+    | expresion_simple:e {: RESULT = e; :}
+    ;
+
+expresion_simple ::= 
+      expresion_simple:e PLUS termino:t  {: ASTNode n = new ASTNode("+"); n.addChild(e); n.addChild(t); RESULT = n; :}
+    | expresion_simple:e MINUS termino:t {: ASTNode n = new ASTNode("-"); n.addChild(e); n.addChild(t); RESULT = n; :}
+    | termino:t {: RESULT = t; :}
+    ;
+
+termino ::= 
+      termino:t MUL factor:f {: ASTNode n = new ASTNode("*"); n.addChild(t); n.addChild(f); RESULT = n; :}
+    | termino:t DIV factor:f {: ASTNode n = new ASTNode("/"); n.addChild(t); n.addChild(f); RESULT = n; :}
+    | termino:t MOD factor:f {: ASTNode n = new ASTNode("%"); n.addChild(t); n.addChild(f); RESULT = n; :}
+    | factor:f {: RESULT = f; :}
+    ;
+
+factor ::= 
+      // 1. Llamada a función: id(args)
+      ID:id LPAREN argumentos_opc:args RPAREN {: ASTNode n = new ASTNode("CallExpr: " + id.getLexeme()); n.addChild(args); RESULT = n; :}
+    
+    // 2. Acceso a arreglo: id[idx]
+    | ID:id LBRACK expresion:idx RBRACK {: ASTNode n = new ASTNode("ArrayGet: " + id.getLexeme()); n.addChild(idx); RESULT = n; :}
+      
+    | LPAREN expresion:e RPAREN {: RESULT = e; :}
+    
+    // 3. Variable simple: id
+    | ID:id {: RESULT = new ASTNode("ID: " + id.getLexeme()); :}
+    
+    | NUMBER:n {: RESULT = new ASTNode("Val: " + n.getLexeme()); :}
+    | STRING:s {: RESULT = new ASTNode("Val: " + s.getLexeme()); :}
+    | TRUE {: RESULT = new ASTNode("Val: True"); :}
+    | FALSE {: RESULT = new ASTNode("Val: False"); :}
+    | unario:u {: RESULT = u; :}
+    | SPEED {: RESULT = new ASTNode("SystemRead:Speed"); :}
+    | DISTANCE {: RESULT = new ASTNode("SystemRead:Distance"); :}
+    | OBSTACLE {: RESULT = new ASTNode("SystemRead:Obstacle"); :}
+    | GPS {: RESULT = new ASTNode("SystemRead:GPS"); :}
+    | VEHICLE_ID {: RESULT = new ASTNode("SystemRead:VehicleID"); :}
+    | GPS LPAREN RPAREN {: RESULT = new ASTNode("SystemRead:GPS_Call"); :}
+    ;
+
+unario ::= 
+      MINUS factor:f {: ASTNode n = new ASTNode("Neg"); n.addChild(f); RESULT = n; :}
+    | NOT factor:f   {: ASTNode n = new ASTNode("Not"); n.addChild(f); RESULT = n; :}
+    | valor_sensor:s {: RESULT = s; :}
+    ;
+
+bloque_mapa ::= 
+      // Opción 1: Navegar a un ID (ej: navigate(destination = Casa);)
+      NAVIGATE LPAREN DESTINATION ASSIGN ID:id RPAREN SEMI 
+      {: ASTNode n = new ASTNode("Navigate"); n.addChild(new ASTNode(id.getLexeme())); RESULT = n; :}
+      
+      // Opción 2: Navegar a un String (ej: navigate(destination = "Almacen");) <-- ESTA FALTABA
+    | NAVIGATE LPAREN DESTINATION ASSIGN STRING:s RPAREN SEMI 
+      {: ASTNode n = new ASTNode("Navigate"); n.addChild(new ASTNode(s.getLexeme())); RESULT = n; :}
+      
+    | GOTO ID:id SEMI {: ASTNode n = new ASTNode("Goto: " + id.getLexeme()); RESULT = n; :}
+    ;
+
+valor_sensor ::= SENSOR LBRACK tipo_sensor:t RBRACK {: ASTNode n = new ASTNode("SensorRead"); n.addChild(t); RESULT = n; :};
+
+tipo_sensor ::= 
+      GPS {: RESULT = new ASTNode("Sensor:GPS"); :}
+    | SPEED {: RESULT = new ASTNode("Sensor:Speed"); :}
+    | DISTANCE {: RESULT = new ASTNode("Sensor:Distance"); :}
+    | OBSTACLE {: RESULT = new ASTNode("Sensor:Obstacle"); :}
+    ;
+
+evento ::= ON EVENT bloque_interno:b {: ASTNode n = new ASTNode("OnEvent"); n.addChild(b); RESULT = n; :};

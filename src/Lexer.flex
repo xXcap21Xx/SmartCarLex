@@ -71,7 +71,7 @@ StringLiteral  = \"([^\\\"]|\\.)*\"
 {LineTerminator} {
     if (seEsperaPuntoYComa) {
         // ¡ERROR DETECTADO EN EL LEXER!
-        String msg = "Error Léxico (Validación Escolar): Falta punto y coma ';' al final de la línea.";
+        String msg = "Error Léxico: Falta punto y coma ';' al final de la línea.";
         lexerErrors.add(new TError(yyline, yycolumn, msg));
         
         // Reseteamos para no spamear errores

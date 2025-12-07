@@ -1,0 +1,50 @@
+program RutaEntrega {
+
+    rutina ReportarEstado {
+        // Uso directo de variables de sistema (GPS, SPEED)
+        str ubicacion = gps();
+        salida("Ubicacion actual:");
+        salida(ubicacion);
+        
+        cuando (speed > 60) {
+            salida("¡Exceso de velocidad!");
+            decelerate;
+        }
+    }
+
+    inicio {
+        // 1. Configuración de Ruta
+        salida("Cargando mapa...");
+        
+        // Uso de comandos de navegación
+        navigate(destination = "AlmacenCentral");
+        
+        accelerate;
+
+        // 2. Simulación de viaje
+        mientras (distance > 0) {
+            ReportarEstado();
+            wait(2);
+            
+            // Asumiendo que distance baja automáticamente en la simulación
+            cuando (obstacle == true) {
+                brake;
+                turn(90);
+                move(5);
+                turn(-90);
+            }
+        }
+
+        // 3. Evento de emergencia
+        on event {
+            // Esto se ejecuta si ocurre algo externo
+            broadcast("Emergencia detectada por sensor externo");
+            stop;
+            salir; // Rompe el flujo
+        }
+
+        salida("Has llegado a tu destino");
+        stop;
+    }
+    end
+}

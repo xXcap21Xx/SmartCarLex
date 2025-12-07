@@ -24,6 +24,7 @@ public class VentanaArbol extends javax.swing.JFrame {
         Arbol.setText(arbol);
         Arbol.setCaretPosition(0); // Opcional: para que muestre desde arriba
         Arbol.setEditable(false);
+        setDefaultCloseOperation(javax.swing.JFrame.DISPOSE_ON_CLOSE); 
     }
 
     /**

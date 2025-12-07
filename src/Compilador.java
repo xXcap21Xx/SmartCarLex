@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import compilerTools.ErrorLSSL;
 import java.io.ByteArrayInputStream;
+import javax.swing.undo.UndoManager;
 import java.io.Reader;
 import javax.swing.table.DefaultTableModel;
 
@@ -50,6 +51,7 @@ public class Compilador extends javax.swing.JFrame {
     private HashMap<String, String> identificadores;
     private boolean codeHasBeenCompiled = false;
     private Object compilerTools;
+    private UndoManager undoManager;
 
     /**
      * Creates new form Compilador
@@ -57,7 +59,9 @@ public class Compilador extends javax.swing.JFrame {
     public Compilador() {
         initComponents();
         init();
-
+        agregarMenuContextual(panel_Codigo); // Menú para el editor
+        agregarMenuContextual(panel_Salida);
+        configurarAtajosTeclado();
     }
 
     private void init() {
@@ -152,7 +156,7 @@ public class Compilador extends javax.swing.JFrame {
                 String newPrefix = prefix + (isLast ? "    " : "│   ");
                 String childPrefix = prefix + (isLast ? "└── " : "├── ");
 
-                // Llamada recursiva (fíjate que pasamos childPrefix solo para la visualización inmediata)
+                // Llamada recursiva
                 // Pero para los hijos de los hijos pasamos newPrefix
                 getASTAsString(child, prefix + (isLast ? "    " : "│   "), sb);
 
@@ -169,8 +173,8 @@ public class Compilador extends javax.swing.JFrame {
         errors.clear();
         errors = new ArrayList<>();
         tablaSimbolos.clear();
-        //identProd.clear();
-        //identificadores.clear();
+        identProd.clear();// Comentar
+        identificadores.clear();// Comentar
         codeHasBeenCompiled = false;
     }
 
@@ -215,7 +219,7 @@ public class Compilador extends javax.swing.JFrame {
                 }
 
                 // Guardamos tokens válidos para la tabla
-                if (s.sym != sym.ERROR && s.value instanceof Token) {
+                if (s.sym != sym.error && s.value instanceof Token) {
                     tokens.add((Token) s.value);
                 }
             }
@@ -290,7 +294,7 @@ public class Compilador extends javax.swing.JFrame {
 
         } catch (Exception ex) {
             // Si el parser explota, lo mostramos como error fatal
-            //errors.add(new TError(0, 0, "Error Fatal de Sintaxis: " + ex.getMessage()));
+            errors.add(new TError(0, 0, "Error Fatal de Sintaxis: " + ex.getMessage()));
         }
 
         /*
@@ -334,8 +338,6 @@ public class Compilador extends javax.swing.JFrame {
             Token t = tokens.get(i);
             String tipoToken = t.getLexicalComp(); // ID, NUMBER, STRING, VAR...
             String lexema = t.getLexeme();         // "x", "10", "hola"...
-            int linea = t.getLine();
-            int columna = t.getColumn();
 
             // -----------------------------------------------------------
             // CASO 1: DECLARACIONES DE VARIABLES (num x, var y, const z)
@@ -352,17 +354,19 @@ public class Compilador extends javax.swing.JFrame {
                         String nombreVar = nextToken.getLexeme();
                         String valorVar = "Indefinido";
 
-                        // Intentamos buscar su valor inicial ( = valor )
+                        // LÓGICA DE ASIGNACIÓN:
+                        // Buscamos si hay un signo '=' después del ID para capturar su valor
                         if (i + 3 < tokens.size()) {
                             Token igual = tokens.get(i + 2);
                             Token valor = tokens.get(i + 3);
 
-                            // Si hay un signo de igual
+                            // Si encontramos "TIPO ID = VALOR"
                             if (igual.getLexeme().equals("=") || igual.getLexicalComp().equals("ASSIGN")) {
                                 valorVar = valor.getLexeme();
                             }
                         }
 
+                        // Guardamos la variable con su valor (ej: Nombre: velocidad, Valor: 80)
                         agregarSimboloSiNoExiste(nombreVar, "Variable (" + lexema + ")", valorVar, nextToken.getLine(), nextToken.getColumn());
                     }
                 }
@@ -377,32 +381,23 @@ public class Compilador extends javax.swing.JFrame {
                     }
                 }
             } // -----------------------------------------------------------
-            // CASO 3: LITERALES (Strings, Números Int/Float, Booleanos)
-            // -----------------------------------------------------------
-            else if (tipoToken.equals("STRING")) {
-                // Detectamos que es una cadena constante
-                agregarSimboloSiNoExiste(lexema, "Constante String", lexema, linea, columna);
-            } else if (tipoToken.equals("NUMBER")) {
-                // Diferenciamos visualmente entre Int y Float buscando el punto
-                String subTipo = lexema.contains(".") ? "Constante Float" : "Constante Int";
-                agregarSimboloSiNoExiste(lexema, subTipo, lexema, linea, columna);
-            } else if (tipoToken.equals("TRUE") || tipoToken.equals("FALSE")) {
-                agregarSimboloSiNoExiste(lexema, "Constante Bool", lexema, linea, columna);
-            } // -----------------------------------------------------------
-            // CASO 4: EVENTOS Y OBJETOS DEL SISTEMA
+            // CASO 3: OBJETOS DEL SISTEMA (Opcional, si quieres verlos)
             // -----------------------------------------------------------
             else if (tipoToken.equals("SENSOR") || tipoToken.equals("GPS")) {
-                agregarSimboloSiNoExiste(lexema, "Objeto de Sistema", "Hardware", linea, columna);
+                // Esto es opcional, si no quieres ver sensores en la tabla, borra este else if también
+                agregarSimboloSiNoExiste(lexema, "Objeto Sistema", "Hardware", t.getLine(), t.getColumn());
             }
+
+            // NOTA: He borrado el bloque que agregaba NUMBER, STRING, TRUE y FALSE.
+            // Ahora esos valores solo aparecerán dentro de la columna "Valor" de las variables.
         }
     }
 
-// --- MÉTODO AUXILIAR PARA NO REPETIR CÓDIGO ---
+// Método auxiliar (asegúrate de tenerlo al final de la clase)
     private void agregarSimboloSiNoExiste(String nombre, String tipo, String valor, int linea, int columna) {
         boolean existe = false;
         for (Simbolo s : tablaSimbolos) {
-            // Validamos si ya existe ese nombre exacto para no duplicar filas
-            if (s.nombre.equals(nombre) && s.tipo.equals(tipo)) {
+            if (s.nombre.equals(nombre)) { // Solo validamos por nombre para evitar duplicados
                 existe = true;
                 break;
             }
@@ -757,6 +752,99 @@ public class Compilador extends javax.swing.JFrame {
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Error al generar el árbol: " + ex.getMessage());
         }
+    }
+
+    // Método para agregar Click Derecho (Copiar, Cortar, Pegar)
+    private void agregarMenuContextual(javax.swing.text.JTextComponent componente) {
+        javax.swing.JPopupMenu menu = new javax.swing.JPopupMenu();
+
+        // Crear las opciones
+        javax.swing.JMenuItem itemCortar = new javax.swing.JMenuItem("Cortar");
+        javax.swing.JMenuItem itemCopiar = new javax.swing.JMenuItem("Copiar");
+        javax.swing.JMenuItem itemPegar = new javax.swing.JMenuItem("Pegar");
+        javax.swing.JMenuItem itemSeleccionar = new javax.swing.JMenuItem("Seleccionar Todo");
+
+        // Acción: CORTAR
+        itemCortar.addActionListener(e -> {
+            componente.cut();
+        });
+
+        // Acción: COPIAR
+        itemCopiar.addActionListener(e -> {
+            componente.copy();
+        });
+
+        // Acción: PEGAR
+        itemPegar.addActionListener(e -> {
+            componente.paste();
+        });
+
+        // Acción: SELECCIONAR TODO
+        itemSeleccionar.addActionListener(e -> {
+            componente.selectAll();
+        });
+
+        // Agregar opciones al menú
+        menu.add(itemCortar);
+        menu.add(itemCopiar);
+        menu.add(itemPegar);
+        menu.add(new javax.swing.JSeparator()); // Una línea separadora
+        menu.add(itemSeleccionar);
+
+        // Asignar el menú al componente (Funciona nativamente con click derecho)
+        componente.setComponentPopupMenu(menu);
+    }
+
+    private void configurarAtajosTeclado() {
+        // 1. Inicializar el Gestor de Deshacer con un límite mayor
+        undoManager = new javax.swing.undo.UndoManager();
+        undoManager.setLimit(1000); // Guardar hasta 1000 acciones
+
+        // 2. Escuchar cambios en el documento
+        panel_Codigo.getDocument().addUndoableEditListener(e -> {
+            undoManager.addEdit(e.getEdit());
+        });
+
+        // 3. Obtener mapas
+        javax.swing.InputMap inputMap = panel_Codigo.getInputMap(javax.swing.JComponent.WHEN_FOCUSED);
+        javax.swing.ActionMap actionMap = panel_Codigo.getActionMap();
+
+        // --- CTRL + Z (Deshacer) ---
+        inputMap.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, java.awt.event.InputEvent.CTRL_DOWN_MASK), "Undo");
+        actionMap.put("Undo", new javax.swing.AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                if (undoManager.canUndo()) {
+                    undoManager.undo();
+                }
+            }
+        });
+
+        // --- REHACER (Definimos la acción una vez y la asignamos a dos atajos) ---
+        javax.swing.AbstractAction redoAction = new javax.swing.AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                if (undoManager.canRedo()) {
+                    undoManager.redo();
+                }
+            }
+        };
+
+        // Opción A: CTRL + Y
+        inputMap.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Y, java.awt.event.InputEvent.CTRL_DOWN_MASK), "Redo");
+        // Opción B: CTRL + SHIFT + Z (Común en otros sistemas)
+        inputMap.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, java.awt.event.InputEvent.CTRL_DOWN_MASK | java.awt.event.InputEvent.SHIFT_DOWN_MASK), "Redo");
+
+        actionMap.put("Redo", redoAction);
+
+        // --- CTRL + S (Guardar) ---
+        inputMap.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S, java.awt.event.InputEvent.CTRL_DOWN_MASK), "Save");
+        actionMap.put("Save", new javax.swing.AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                btn_Guardar.doClick();
+            }
+        });
     }
 
     /**

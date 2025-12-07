@@ -1,0 +1,44 @@
+program CalculadoraAutonoma {
+
+    // Método recursivo para calcular factorial
+    // (Útil para probar el manejo de pila de llamadas y retorno)
+    metodo Factorial(num n) {
+        cuando (n <= 1) {
+            regresa 1;
+        } sino {
+            // Llamada recursiva dentro de una expresión matemática
+            regresa n * Factorial(n - 1);
+        }
+    }
+
+    inicio {
+        num base = 10;
+        num altura = 20;
+        
+        // Expresión compleja con paréntesis y precedencia
+        // (10 + 20) * 2 / 5 = 12
+        num area = ((base + altura) * 2) / 5;
+        
+        salida("Area calculada:");
+        salida(area);
+
+        // Prueba de lógica booleana compleja
+        bool sistemaListo = true;
+        bool motorEncendido = false;
+        num bateria = 90;
+
+        // (true AND !false) OR (90 < 10) -> true OR false -> true
+        cuando (sistemaListo && !motorEncendido || bateria < 10) {
+            salida("Iniciando secuencia de encendido...");
+            motorEncendido = true;
+        }
+
+        // Prueba de recursividad
+        num valor = 5;
+        num fact = Factorial(valor);
+        
+        salida("Factorial de 5 es:");
+        salida(fact);
+    }
+    end
+}

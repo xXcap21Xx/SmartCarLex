@@ -6,81 +6,81 @@
 /** CUP generated class containing symbol constants. */
 public class sym {
   /* terminals */
-  public static final int DESTINATION = 48;
-  public static final int BOOL = 11;
-  public static final int GT = 63;
-  public static final int CONST = 14;
-  public static final int SENSOR = 32;
-  public static final int GE = 52;
-  public static final int OBSTACLE = 36;
-  public static final int SEMI = 64;
-  public static final int BRAKE = 31;
-  public static final int RBRACK = 71;
-  public static final int VEHICLE_ID = 42;
-  public static final int COMMA = 65;
+  public static final int DESTINATION = 46;
+  public static final int BOOL = 14;
+  public static final int GT = 61;
+  public static final int CONST = 10;
+  public static final int SENSOR = 30;
+  public static final int GE = 63;
+  public static final int OBSTACLE = 34;
+  public static final int SEMI = 67;
+  public static final int BRAKE = 29;
+  public static final int RBRACK = 74;
+  public static final int VEHICLE_ID = 40;
+  public static final int COMMA = 68;
+  public static final int RBRACE = 72;
   public static final int INICIO = 3;
-  public static final int RBRACE = 69;
-  public static final int RPAREN = 67;
-  public static final int MOVE = 24;
-  public static final int LBRACK = 70;
-  public static final int LT = 62;
+  public static final int RPAREN = 70;
+  public static final int MOVE = 22;
+  public static final int LBRACK = 73;
+  public static final int LT = 60;
   public static final int METODO = 5;
-  public static final int LBRACE = 68;
-  public static final int BROADCAST = 37;
-  public static final int LPAREN = 66;
-  public static final int LOOP = 21;
-  public static final int NAVIGATE = 47;
-  public static final int FALSE = 17;
-  public static final int DECEL = 29;
-  public static final int NOT = 55;
-  public static final int STOP = 26;
-  public static final int CUANDO = 18;
-  public static final int LE = 51;
-  public static final int VAR = 13;
-  public static final int GOTO = 45;
-  public static final int STR = 12;
-  public static final int GPS = 33;
-  public static final int NUM = 10;
-  public static final int EQ = 49;
-  public static final int REVERSE = 30;
-  public static final int MUL = 58;
-  public static final int SALIR = 22;
-  public static final int MOD = 60;
-  public static final int NUMBER = 74;
-  public static final int TRUE = 16;
-  public static final int PLUS = 56;
-  public static final int ASSIGN = 61;
-  public static final int WAYPOINT = 44;
-  public static final int DIV = 59;
-  public static final int MAP = 46;
+  public static final int LBRACE = 71;
+  public static final int BROADCAST = 35;
+  public static final int LPAREN = 69;
+  public static final int LOOP = 19;
+  public static final int NAVIGATE = 45;
+  public static final int FALSE = 48;
+  public static final int DECEL = 27;
+  public static final int NOT = 66;
+  public static final int STOP = 24;
+  public static final int CUANDO = 16;
+  public static final int LE = 62;
+  public static final int VAR = 12;
+  public static final int GOTO = 43;
+  public static final int STR = 15;
+  public static final int GPS = 31;
+  public static final int NUM = 13;
+  public static final int EQ = 58;
+  public static final int REVERSE = 28;
+  public static final int MUL = 54;
+  public static final int SALIR = 20;
+  public static final int MOD = 56;
+  public static final int NUMBER = 51;
+  public static final int TRUE = 47;
+  public static final int PLUS = 52;
+  public static final int ASSIGN = 57;
+  public static final int WAYPOINT = 42;
+  public static final int DIV = 55;
+  public static final int MAP = 44;
   public static final int EOF = 0;
-  public static final int MIENTRAS = 20;
+  public static final int MIENTRAS = 18;
   public static final int RUTINA = 6;
-  public static final int MESSAGE = 39;
-  public static final int MINUS = 57;
-  public static final int SPEED = 34;
-  public static final int OR = 54;
-  public static final int SET = 15;
-  public static final int RECEIVE = 38;
-  public static final int ERROR = 1;
-  public static final int ON = 41;
-  public static final int ENTRADA = 7;
-  public static final int ID = 72;
-  public static final int ACCEL = 28;
-  public static final int SINO = 19;
-  public static final int TURN = 25;
+  public static final int MESSAGE = 37;
+  public static final int MINUS = 53;
+  public static final int SPEED = 32;
+  public static final int OR = 65;
+  public static final int SET = 11;
+  public static final int RECEIVE = 36;
+  public static final int error = 1;
+  public static final int ON = 39;
+  public static final int ENTRADA = 8;
+  public static final int ID = 49;
+  public static final int ACCEL = 26;
+  public static final int SINO = 17;
+  public static final int TURN = 23;
   public static final int END = 4;
-  public static final int DISTANCE = 35;
-  public static final int SIGUE = 23;
-  public static final int STRING = 73;
-  public static final int NEQ = 50;
+  public static final int DISTANCE = 33;
+  public static final int SIGUE = 21;
+  public static final int STRING = 50;
+  public static final int NEQ = 59;
   public static final int PROGRAM = 2;
-  public static final int AND = 53;
-  public static final int WAIT = 27;
-  public static final int ROUTE = 43;
-  public static final int REGRESA = 9;
-  public static final int EVENT = 40;
-  public static final int SALIDA = 8;
+  public static final int AND = 64;
+  public static final int WAIT = 25;
+  public static final int ROUTE = 41;
+  public static final int REGRESA = 7;
+  public static final int EVENT = 38;
+  public static final int SALIDA = 9;
   public static final String[] terminalNames = new String[] {
   "EOF",
   "error",
@@ -89,17 +89,15 @@ public class sym {
   "END",
   "METODO",
   "RUTINA",
+  "REGRESA",
   "ENTRADA",
   "SALIDA",
-  "REGRESA",
+  "CONST",
+  "SET",
+  "VAR",
   "NUM",
   "BOOL",
   "STR",
-  "VAR",
-  "CONST",
-  "SET",
-  "TRUE",
-  "FALSE",
   "CUANDO",
   "SINO",
   "MIENTRAS",
@@ -131,21 +129,26 @@ public class sym {
   "MAP",
   "NAVIGATE",
   "DESTINATION",
-  "EQ",
-  "NEQ",
-  "LE",
-  "GE",
-  "AND",
-  "OR",
-  "NOT",
+  "TRUE",
+  "FALSE",
+  "ID",
+  "STRING",
+  "NUMBER",
   "PLUS",
   "MINUS",
   "MUL",
   "DIV",
   "MOD",
   "ASSIGN",
+  "EQ",
+  "NEQ",
   "LT",
   "GT",
+  "LE",
+  "GE",
+  "AND",
+  "OR",
+  "NOT",
   "SEMI",
   "COMMA",
   "LPAREN",
@@ -153,10 +156,7 @@ public class sym {
   "LBRACE",
   "RBRACE",
   "LBRACK",
-  "RBRACK",
-  "ID",
-  "STRING",
-  "NUMBER"
+  "RBRACK"
   };
 }
 
