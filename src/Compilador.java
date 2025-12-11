@@ -53,6 +53,17 @@ public class Compilador extends javax.swing.JFrame {
     private Object compilerTools;
     private UndoManager undoManager;
 
+    private final String[] PALABRAS_CLAVE = {
+        "program", "inicio", "end", "metodo", "rutina", "regresa",
+        "entrada", "salida", "const", "set", "var", "num", "bool", "str",
+        "cuando", "sino", "mientras", "loop", "salir", "sigue",
+        "move", "turn", "stop", "wait", "accel", "decel", "reverse", "brake",
+        "sensor", "gps", "speed", "distance", "obstacle",
+        "broadcast", "receive", "message", "event", "on", "vehicle_id",
+        "route", "waypoint", "goto", "map", "navigate", "destination",
+        "true", "false"
+    };
+
     /**
      * Creates new form Compilador
      */
@@ -192,6 +203,8 @@ public class Compilador extends javax.swing.JFrame {
         // 4. IMPRIMIR
         printConsole();
         codeHasBeenCompiled = true;
+        // 4. Ortográfico
+        verificarErroresOrtograficos();
         /*
         clearFields();
         lexicalAnalysis();
@@ -205,7 +218,7 @@ public class Compilador extends javax.swing.JFrame {
 
     private void lexicalAnalysis() {
         // 1. Limpiar tokens previos
-// Limpiamos la lista de tokens para empezar de nuevo
+        // Limpiamos la lista de tokens para empezar de nuevo
         tokens.clear();
 
         try {
@@ -845,6 +858,81 @@ public class Compilador extends javax.swing.JFrame {
                 btn_Guardar.doClick();
             }
         });
+    }
+
+private void verificarErroresOrtograficos() {
+    System.out.println("--- Iniciando Verificación Ortográfica ---");
+    
+    for (Token t : tokens) {
+        // Solo analizamos identificadores desconocidos
+        if (t.getLexicalComp().equals("ID")) {
+            String lexema = t.getLexeme();
+            
+            // Si el usuario escribió una variable que ya existe (ej: "velocidad"), la ignoramos
+            boolean esVariableReal = false;
+            for (Simbolo s : tablaSimbolos) {
+                if (s.nombre.equals(lexema)) {
+                    esVariableReal = true;
+                    break;
+                }
+            }
+            if (esVariableReal) continue; // Saltamos al siguiente token
+
+            // --- BUSCAR EL MEJOR CANDIDATO ---
+            String mejorCandidato = null;
+            int menorDistancia = 100; // Un número alto inicial
+
+            for (String palabra : PALABRAS_CLAVE) {
+                int distancia = calcularDistanciaLevenshtein(lexema, palabra);
+                
+                // REGLA INTELIGENTE:
+                // Si la palabra es corta (< 5 letras), exigimos máxima precisión (máx 1 error).
+                // Si es larga, permitimos hasta 2 errores.
+                int umbralMaximo = (lexema.length() < 5) ? 1 : 2;
+
+                if (distancia > 0 && distancia <= umbralMaximo) {
+                    // Si encontramos una palabra más parecida que la anterior, la guardamos
+                    if (distancia < menorDistancia) {
+                        menorDistancia = distancia;
+                        mejorCandidato = palabra;
+                    }
+                }
+            }
+
+            // Si al final encontramos un ganador claro...
+            if (mejorCandidato != null) {
+                String msg = "Posible error: Escribiste '" + lexema + "'. ¿Quisiste decir '" + mejorCandidato + "'?";
+                errors.add(new TError(t.getLine(), t.getColumn(), msg));
+                System.out.println("Sugerencia aplicada: " + msg);
+            }
+        }
+    }
+}
+
+    // Algoritmo para calcular la distancia entre dos palabras
+    private int calcularDistanciaLevenshtein(String s1, String s2) {
+        int[][] dp = new int[s1.length() + 1][s2.length() + 1];
+
+        for (int i = 0; i <= s1.length(); i++) {
+            for (int j = 0; j <= s2.length(); j++) {
+                if (i == 0) {
+                    dp[i][j] = j;
+                } else if (j == 0) {
+                    dp[i][j] = i;
+                } else {
+                    dp[i][j] = min(
+                            dp[i - 1][j - 1] + (s1.charAt(i - 1) == s2.charAt(j - 1) ? 0 : 1),
+                            dp[i - 1][j] + 1,
+                            dp[i][j - 1] + 1
+                    );
+                }
+            }
+        }
+        return dp[s1.length()][s2.length()];
+    }
+
+    private int min(int a, int b, int c) {
+        return Math.min(a, Math.min(b, c));
     }
 
     /**

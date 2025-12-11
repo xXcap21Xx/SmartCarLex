@@ -1,74 +1,14 @@
-program AutoInteligente {
-
-    // 1. DEFINICIONES (Ahora van ANTES de 'inicio')
-    
-    // Método con parámetros y retorno
-    metodo CalcularFrenado(num velocidad, num friccion) {
-        // Declaración interna
-        num factor = 0;
-        
-        // Operación usando parámetros
-        num resultado = (velocidad / factor) * friccion;
-        
-        // Sentencia de retorno
-        regresa resultado;
-    }
-
-    // Rutina simple
-    rutina EsquivarObstaculo {
-        salida("Iniciando maniobra de esquive...");
-        stop;
-        turn(45);
-        move(10);
-        turn(-45);
-    }
-
-    // 2. BLOQUE PRINCIPAL
+program PruebaOrtografia {
     inicio {
-        // Declaración con inicialización (nueva característica)
-        str estado = "Sistema Operativo";
-        salida(estado);
-
-        // Variables declaradas al principio
-        num velActual = 80;
-        num distSegura = 20;
-
-        // Acción normal
-        accelerate;
-        
-        // --- PRUEBA DE FLEXIBILIDAD: Declaración en medio del código ---
-        num lecturaSensor = sensor[distance]; 
-
-        // Control de flujo
-        cuando (lecturaSensor < distSegura) {
+        // Correcto
+        mientras (true) {
             
-            // Llamada a Rutina (con paréntesis vacíos según tu gramática)
-            EsquivarObstaculo();
+            // Error de dedo: "sto" en vez de "stop"
+            // El parser pensará que 'sto' es una variable o función, 
+            // dará error de sintaxis, pero el corrector sugerirá "stop".
+            sto; 
             
-        } sino {
-            // Uso de sensores en condiciones
-            mientras (speed < 100) {
-                accelerate;
-                
-                // Otra declaración dentro de un bloque while (¡Muy flexible!)
-                num alerta = 1; 
-                salida(alerta);
-            }
-        }
-
-        // Llamada a Método con argumentos y asignación del retorno
-        num distanciaFrenado = 0;
-        distanciaFrenado = CalcularFrenado(velActual, 0.8);
-        
-        salida("Distancia requerida para frenar:");
-        salida(distanciaFrenado);
-
-        // Comandos de mapa y navegación
-        goto Casa;
-        
-        // Eventos
-        on event {
-            broadcast("Llegando a destino");
+            salir;
         }
     }
     end

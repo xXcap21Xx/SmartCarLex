@@ -7,21 +7,25 @@ import java_cup.runtime.*;
 parser code {:
     public java.util.List<TError> errors = new java.util.ArrayList<>();
 
-    private TError crearError(Symbol s, String mensajeBase) {
+private TError crearError(Symbol s, String mensajeBase) {
         int linea = s.left;
         int columna = s.right;
-        String lexema;
+        String lexema = "Desconocido";
         
         if (s.sym == sym.EOF) {
             lexema = "Fin de Archivo";
             if (linea == -1) { linea = 0; columna = 0; }
-        } else if (s.value != null && s.value instanceof Token) {
-            Token t = (Token) s.value;
-            linea = t.getLine();
-            columna = t.getColumn();
-            lexema = t.getLexeme();
-        } else {
-            lexema = (s.value != null && !(s.value instanceof String)) ? s.value.toString() : "Token desconocido";
+        } else if (s.value != null) {
+            // VERIFICACIÓN MÁS ROBUSTA
+            if (s.value instanceof Token) {
+                Token t = (Token) s.value;
+                linea = t.getLine();
+                columna = t.getColumn();
+                lexema = t.getLexeme();
+            } else {
+                // Si no es token, usamos su toString() (ej: si es un String puro)
+                lexema = s.value.toString();
+            }
         }
         
         return new TError(linea, columna, mensajeBase + " '" + lexema + "'");
@@ -171,6 +175,24 @@ sentencias_bloque ::=
 sentencia_completa ::= 
       declaracion:d {: RESULT = d; :}
     | sentencia:s   {: RESULT = s; :}
+    
+    // --- TRAMPA CORREGIDA ---
+    // Capturamos el objeto 'id' que es de tipo Token
+    | ID:id SEMI    
+      {: 
+         // Hacemos el casting seguro (porque ID es terminal Token)
+         Token t = (Token) id;
+         
+         // Creamos el mensaje personalizado
+         String msg = "Instrucción desconocida o variable no asignada";
+         
+         // Agregamos el error DIRECTAMENTE a la lista usando las coordenadas reales del token
+         parser.errors.add(new TError(t.getLine(), t.getColumn(), msg));
+         
+         // Retornamos null para que el árbol ignore esta rama pero siga compilando
+         RESULT = null; 
+      :}
+      
     | error SEMI    {: RESULT = null; :} 
     ;
 
