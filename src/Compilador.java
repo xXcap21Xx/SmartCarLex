@@ -189,6 +189,8 @@ public class Compilador extends javax.swing.JFrame {
         System.out.println("Errores tras Sintactico: " + errors.size()); // <--- DEBUG
         // 3. SEMÁNTICO
         semanticAnalysis();
+        System.out.println("Errores tras Semantico: " + errors.size()); // <--- DEBUG
+        System.out.println("\n");
         // 4. IMPRIMIR
         printConsole();
         codeHasBeenCompiled = true;

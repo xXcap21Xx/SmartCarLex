@@ -1,73 +1,102 @@
-program AutoInteligente {
+program SistemaDeNavegacionReactiva {
     
-    // Método con parámetros y retorno
-    metodo CalcularFrenado (num velocidad, num friccion) {
-        // Declaración interna
-        num factor = 0;
+    // ==========================================================
+    // DECLARACIONES GLOBALES (No definidas en esta versión de gramática, 
+    // pero las ubicamos aquí por contexto. En esta versión, van en INICIO)
+    // ==========================================================
+
+    // ==========================================================
+    // DEFINICIÓN DE MÉTODOS Y RUTINAS
+    // ==========================================================
+    
+    // Método que simula la revisión de un estado (ej: batería)
+    metodo revisarBateria(num nivel_actual) {
         
-        // Operación usando parámetros
-        num resultado = (velocidad / factor) * friccion;
+        bool estado_critico = nivel_actual < 10;
         
-        // Sentencia de retorno
-        regresa resultado;
-    }
-
-    // Rutina simple
-    rutina EsquivarObstaculo {
-        salida("Iniciando maniobra de esquive...");
-        stop;
-        turn(45);
-        move(10);
-        turn(-45);
-    }
-
-    // 2. BLOQUE PRINCIPAL
-    inicio {
-        // Declaración con inicialización (nueva característica)
-        str estado = "Sistema Operativo";
-        salida(estado);
-
-        // Variables declaradas al principio
-        num velActual = 80;
-        num distSegura = 20;
-
-        // Acción normal
-        accelerate;
-        
-        // --- PRUEBA DE FLEXIBILIDAD: Declaración en medio del código ---
-        num lecturaSensor = sensor[distance]; 
-
-        // Control de flujo
-        cuando (lecturaSensor < distSegura) {
-            
-            // Llamada a Rutina (con paréntesis vacíos según tu gramática)
-            EsquivarObstaculo();
-            
+        cuando (estado_critico == true) {
+            regresa true; // Batería baja
         } sino {
-            // Uso de sensores en condiciones
-            mientras (speed < 20) {
-                accelerate;
+            regresa false; // Batería OK
+        }
+    }
+    
+    // Rutina para manejar el frenado y la alerta de peligro
+    rutina alertaDePeligro {
+        
+        stop;
+        brake;
+        broadcast(message = "Peligro: Detención de Emergencia");
+    }
+    
+    // ==========================================================
+    // BLOQUE PRINCIPAL (INICIO)
+    // ==========================================================
+    
+    inicio {
+        
+        // Declaraciones de Variables Locales
+        num velocidad_maxima = 70;
+        num bateria_nivel = 100;
+        bool en_peligro;
+        num distancia_sensor;
+        
+        // 1. Configuración de la Ruta de Navegación
+        salida("Configurando ruta...");
+        map ruta_principal[waypoint "WP1", waypoint "WP2", waypoint "WP3", waypoint "Final"];
+        navigate(destination = "Final");
+        
+        // 2. Bucle principal de control del vehículo (Ciclo LOOP)
+        loop {
+            
+            // --- Lectura de Sensores ---
+            distancia_sensor = sensor[distance];
+            en_peligro = sensor[obstacle];
+            bateria_nivel = bateria_nivel - 1; // Simulación de consumo
+
+            // --- Llamada a Método y Asignación
+            bool bateria_baja = revisarBateria(bateria_nivel);
+            
+            // --- Control de Flujo Lógico ---
+            
+            cuando (bateria_baja == true) {
                 
-                // Otra declaración dentro de un bloque while (¡Muy flexible!)
-                num alerta = 1; 
-                salida(alerta);
+                alertaDePeligro();
+                salida("ERROR: Batería baja. Detenido.");
+                
+            } sino {
+                
+                // Si la batería está bien, checamos obstáculos/distancia
+                
+                cuando (en_peligro == true || distancia_sensor <= 5) {
+                    
+                    // Llamada a Rutina de Alerta
+                    alertaDePeligro(); 
+                    salida("Obstáculo o distancia crítica.");
+                    
+                } sino {
+                    
+                    // Si no hay peligro, aceleramos hasta el límite
+                    mientras (sensor[speed] < velocidad_maxima) {
+                        accelerate;
+                    }
+                    move 5; // Mover hacia adelante
+                    
+                }
+            }
+            
+            // Esperar un momento antes de la siguiente iteración
+            wait(1); 
+            
+            // 3. Recepción de mensajes externos (interacción)
+            str mensaje_externo;
+            receive(message = mensaje_externo);
+            
+            cuando (mensaje_externo == "RUTA_CANCELADA") {
+                salida("Recibido: Ruta Cancelada. Deteniendo.");
+                break;
             }
         }
-
-        // Llamada a Método con argumentos y asignación del retorno
-        num distanciaFrenado = 0;
-        distanciaFrenado = CalcularFrenado(velActual, 0.8);
         
-        salida("Distancia requerida para frenar:");
-        salida(distanciaFrenado);
-
-        // Comandos de mapa y navegación
-        goto Casa;
-        
-        // Eventos
-        on event {
-            broadcast("Llegando a destino");
-        }
-    }
-    end
+    } end 
 }
