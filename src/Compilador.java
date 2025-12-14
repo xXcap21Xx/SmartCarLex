@@ -331,65 +331,93 @@ public class Compilador extends javax.swing.JFrame {
     }
 
     private void semanticAnalysis() {
-        tablaSimbolos.clear(); // Limpiar tabla anterior
+        tablaSimbolos.clear();
 
-        // Recorremos la lista de tokens
         for (int i = 0; i < tokens.size(); i++) {
             Token t = tokens.get(i);
-            String tipoToken = t.getLexicalComp(); // ID, NUMBER, STRING, VAR...
-            String lexema = t.getLexeme();         // "x", "10", "hola"...
+            String tipoToken = t.getLexicalComp();
+            String lexema = t.getLexeme();
 
-            // -----------------------------------------------------------
-            // CASO 1: DECLARACIONES DE VARIABLES (num x, var y, const z)
-            // -----------------------------------------------------------
             if (tipoToken.equals("NUM") || tipoToken.equals("BOOL") || tipoToken.equals("STR")
-                    || tipoToken.equals("VAR") || tipoToken.equals("CONST") || tipoToken.equals("ROUTE")
-                    || tipoToken.equals("SET")) {
+                    || tipoToken.equals("VAR") || tipoToken.equals("CONST") || tipoToken.equals("SET")) {
 
-                // Miramos adelante: ¿Sigue un ID?
                 if (i + 1 < tokens.size()) {
                     Token nextToken = tokens.get(i + 1);
 
                     if (nextToken.getLexicalComp().equals("ID")) {
                         String nombreVar = nextToken.getLexeme();
                         String valorVar = "Indefinido";
+                        String tipoDeclarado = tipoToken;
 
-                        // LÓGICA DE ASIGNACIÓN:
-                        // Buscamos si hay un signo '=' después del ID para capturar su valor
-                        if (i + 3 < tokens.size()) {
-                            Token igual = tokens.get(i + 2);
-                            Token valor = tokens.get(i + 3);
+                        // Buscamos el signo '='
+                        if (i + 2 < tokens.size() && (tokens.get(i + 2).getLexeme().equals("=") || tokens.get(i + 2).getLexicalComp().equals("ASSIGN"))) {
 
-                            // Si encontramos "TIPO ID = VALOR"
-                            if (igual.getLexeme().equals("=") || igual.getLexicalComp().equals("ASSIGN")) {
-                                valorVar = valor.getLexeme();
+                            if (i + 3 < tokens.size()) {
+                                Token tokenValor = tokens.get(i + 3);
+                                String compValor = tokenValor.getLexicalComp();
+
+                                if (compValor.equals("SEMI")) {
+                                    errors.add(new TError(tokenValor.getLine(), tokenValor.getColumn(),
+                                            "Error Semántico: Falto agregar valor despues de '=' en '" + nombreVar + "'"));
+                                } else {
+                                    // --- NUEVA LÓGICA FLEXIBLE DE TIPOS ---
+                                    valorVar = tokenValor.getLexeme();
+
+                                    // Si es NUM, aceptamos que empiece con NUMBER, LPAREN (paréntesis), MINUS (negativos) o un ID
+                                    if (tipoDeclarado.equals("NUM")) {
+                                        if (compValor.equals("STRING")) {
+                                            errors.add(new TError(tokenValor.getLine(), tokenValor.getColumn(),
+                                                    "Error de Tipo: No se puede asignar un STRING a la variable numérica '" + nombreVar + "'"));
+                                        } else if (compValor.equals("TRUE") || compValor.equals("FALSE")) {
+                                            errors.add(new TError(tokenValor.getLine(), tokenValor.getColumn(),
+                                                    "Error de Tipo: No se puede asignar un BOOLEAN a la variable numérica '" + nombreVar + "'"));
+                                        }
+
+                                        // --- VALIDACIÓN EXTRA: DIVISIÓN POR CERO (Estática) ---
+                                        validarDivisionPorCero(i, nombreVar);
+                                    } // Si es STR, debe ser obligatoriamente un STRING
+                                    else if (tipoDeclarado.equals("STR") && !compValor.equals("STRING")) {
+                                        errors.add(new TError(tokenValor.getLine(), tokenValor.getColumn(),
+                                                "Error de Tipo: Se esperaba un STRING para la variable '" + nombreVar + "'"));
+                                    }
+                                }
                             }
                         }
-
-                        // Guardamos la variable con su valor (ej: Nombre: velocidad, Valor: 80)
                         agregarSimboloSiNoExiste(nombreVar, "Variable (" + lexema + ")", valorVar, nextToken.getLine(), nextToken.getColumn());
                     }
                 }
-            } // -----------------------------------------------------------
-            // CASO 2: RUTINAS Y MÉTODOS
-            // -----------------------------------------------------------
-            else if (tipoToken.equals("RUTINA") || tipoToken.equals("METODO")) {
+            } else if (tipoToken.equals("RUTINA") || tipoToken.equals("METODO")) {
+                // (Tu lógica actual de rutinas...)
                 if (i + 1 < tokens.size()) {
                     Token nextToken = tokens.get(i + 1);
                     if (nextToken.getLexicalComp().equals("ID")) {
                         agregarSimboloSiNoExiste(nextToken.getLexeme(), "Rutina/Función", "Código", nextToken.getLine(), nextToken.getColumn());
                     }
                 }
-            } // -----------------------------------------------------------
-            // CASO 3: OBJETOS DEL SISTEMA (Opcional, si quieres verlos)
-            // -----------------------------------------------------------
-            else if (tipoToken.equals("SENSOR") || tipoToken.equals("GPS")) {
-                // Esto es opcional, si no quieres ver sensores en la tabla, borra este else if también
-                agregarSimboloSiNoExiste(lexema, "Objeto Sistema", "Hardware", t.getLine(), t.getColumn());
+            }
+        }
+    }
+
+    /**
+     * Busca si en la expresión actual existe una división por el literal '0'
+     */
+    private void validarDivisionPorCero(int indexActual, String nombreVar) {
+        // Buscamos en los siguientes tokens de la misma línea hasta el punto y coma
+        for (int j = indexActual; j < tokens.size(); j++) {
+            Token current = tokens.get(j);
+            if (current.getLexicalComp().equals("SEMI")) {
+                break;
             }
 
-            // NOTA: He borrado el bloque que agregaba NUMBER, STRING, TRUE y FALSE.
-            // Ahora esos valores solo aparecerán dentro de la columna "Valor" de las variables.
+            if (current.getLexicalComp().equals("DIV")) { // Si encontramos '/'
+                if (j + 1 < tokens.size()) {
+                    Token divisor = tokens.get(j + 1);
+                    if (divisor.getLexeme().equals("0")) {
+                        errors.add(new TError(divisor.getLine(), divisor.getColumn(),
+                                "Error Matemático: División por cero detectada en la variable '" + nombreVar + "'"));
+                    }
+                }
+            }
         }
     }
 

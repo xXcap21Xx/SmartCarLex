@@ -997,7 +997,7 @@ private Symbol token(String lexeme, String lexicalComp, int line, int column, in
             { if (seEsperaPuntoYComa) {
         // ¡ERROR DETECTADO EN EL LEXER!
         String msg = "Error Léxico: Falta punto y coma ';' al final de la línea.";
-        lexerErrors.add(new TError(yyline, yycolumn, msg));
+        lexerErrors.add(new TError(yyline + 1, yycolumn, msg)); 
         
         // Reseteamos para no spamear errores
         seEsperaPuntoYComa = false; 

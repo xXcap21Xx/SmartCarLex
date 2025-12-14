@@ -1,9 +1,7 @@
 program AutoInteligente {
-
-    // 1. DEFINICIONES (Ahora van ANTES de 'inicio')
     
     // Método con parámetros y retorno
-    metodo CalcularFrenado(num velocidad, num friccion) {
+    metodo CalcularFrenado (num velocidad, num friccion) {
         // Declaración interna
         num factor = 0;
         
@@ -47,7 +45,7 @@ program AutoInteligente {
             
         } sino {
             // Uso de sensores en condiciones
-            mientras (speed < 100) {
+            mientras (speed < 20) {
                 accelerate;
                 
                 // Otra declaración dentro de un bloque while (¡Muy flexible!)

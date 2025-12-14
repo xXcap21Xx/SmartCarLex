@@ -171,7 +171,9 @@ sentencias_bloque ::=
 sentencia_completa ::= 
       declaracion:d {: RESULT = d; :}
     | sentencia:s   {: RESULT = s; :}
-    | error SEMI    {: RESULT = null; :} 
+    // Si hay un error sintáctico (como el ; faltante), el parser intentará 
+    // recuperarse hasta encontrar el inicio de otra sentencia o un SEMI.
+    | error {: RESULT = null; :} 
     ;
 
 /* --- DECLARACIONES --- */
