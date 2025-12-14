@@ -80,53 +80,47 @@ precedence nonassoc SINO;
 start with S;
 
 S ::= 
+    // OPCIÓN 1: Estructura correcta (La que ya tienes)
     PROGRAM ID:id LBRACE definiciones_principales:defs INICIO LBRACE sentencias_bloque:sents RBRACE END RBRACE
     {: 
        ASTNode n = new ASTNode("Program: " + id.getLexeme());
-       if(defs != null) {
-           for(ASTNode child : defs.children) n.addChild(child);
-       }
+       if(defs != null) { for(ASTNode child : defs.children) n.addChild(child); }
        ASTNode mainNode = new ASTNode("Inicio");
-       if(sents != null) {
-           for(ASTNode child : sents.children) mainNode.addChild(child);
-       }
+       if(sents != null) { for(ASTNode child : sents.children) mainNode.addChild(child); }
        n.addChild(mainNode);
        RESULT = n; 
     :}
+    
+    // OPCIÓN 2: TRAMPA DE ERROR (Si falta la llave '{' después del nombre del programa)
+    | PROGRAM ID:id error 
+    {: 
+       // Reportamos el error exacto indicando que falta la llave de apertura
+       parser.errors.add(new TError(id.getLine(), id.getColumn(), 
+           "Error Sintáctico: Falta la llave '{' para iniciar el bloque del programa '" + id.getLexeme() + "'"));
+       RESULT = new ASTNode("Error_Raiz");
+    :}
+    ;
+/* --- DEFINICIONES --- */
+definiciones_principales ::= 
+      definiciones_principales:list definicion:d
+      {: if(d != null) list.addChild(d); RESULT = list; :}
+    | /* epsilon */ 
+      {: RESULT = new ASTNode("Definiciones"); :}
     ;
 
 /* --- DEFINICIONES --- */
-definiciones_principales ::= 
-    definicion:d definiciones_principales:sig
-    {: 
-       if (sig != null) {
-           sig.children.add(0, d); 
-           RESULT = sig;
-       } else {
-           ASTNode n = new ASTNode("Definiciones");
-           n.addChild(d);
-           RESULT = n;
-       }
-    :}
-    | /* epsilon */ {: RESULT = new ASTNode("Definiciones"); :} 
-    ;
-
 definicion ::= 
       METODO ID:id LPAREN parametros_opc:p RPAREN LBRACE sentencias_bloque:sb RBRACE
       {: 
          ASTNode n = new ASTNode("Metodo: " + id.getLexeme());
          if (p != null && !p.children.isEmpty()) n.addChild(p);
-         if(sb!=null) {
-            for(ASTNode child : sb.children) n.addChild(child);
-         }
+         if(sb != null) { for(ASTNode child : sb.children) n.addChild(child); }
          RESULT = n; 
       :}
     | RUTINA ID:id LBRACE sentencias_bloque:sb RBRACE
       {: 
          ASTNode n = new ASTNode("Rutina: " + id.getLexeme());
-         if(sb!=null) {
-            for(ASTNode child : sb.children) n.addChild(child);
-         }
+         if(sb != null) { for(ASTNode child : sb.children) n.addChild(child); }
          RESULT = n; 
       :}
     ;
@@ -135,17 +129,8 @@ definicion ::=
 parametros_opc ::= parametros:p {: RESULT = p; :} | /* epsilon */ {: RESULT = new ASTNode("Params"); :};
 
 parametros ::= 
-      parametro:p COMMA parametros:sig 
-      {: 
-         if (sig != null) {
-             sig.children.add(0, p);
-             RESULT = sig;
-         } else {
-             ASTNode n = new ASTNode("Params");
-             n.addChild(p);
-             RESULT = n;
-         }
-      :}
+      parametros:list COMMA parametro:p
+      {: list.addChild(p); RESULT = list; :}
     | parametro:p 
       {: ASTNode n = new ASTNode("Params"); n.addChild(p); RESULT = n; :}
     ;
@@ -154,26 +139,26 @@ parametro ::= tipo:t ID:id {: ASTNode n = new ASTNode("Param: " + id.getLexeme()
 
 /* --- BLOQUES --- */
 sentencias_bloque ::= 
-    sentencia_completa:s sentencias_bloque:sig
-    {: 
-       if (sig != null) {
-           if (s != null) sig.children.add(0, s);
-           RESULT = sig;
-       } else {
-           ASTNode n = new ASTNode("Bloque");
-           if (s != null) n.addChild(s);
-           RESULT = n;
-       }
-    :}
-    | /* epsilon */ {: RESULT = new ASTNode("Bloque"); :}
+      sentencias_bloque:list sentencia_completa:s
+      {: 
+         if(s != null) list.addChild(s); 
+         RESULT = list; 
+      :}
+    | /* epsilon */ 
+      {: 
+         RESULT = new ASTNode("Bloque"); 
+      :}
     ;
 
 sentencia_completa ::= 
       declaracion:d {: RESULT = d; :}
     | sentencia:s   {: RESULT = s; :}
-    // Si hay un error sintáctico (como el ; faltante), el parser intentará 
-    // recuperarse hasta encontrar el inicio de otra sentencia o un SEMI.
-    | error {: RESULT = null; :} 
+    | error SEMI    
+      {: 
+        // Si hay un error en una instrucción, saltamos hasta el ';' 
+        // Esto evita que el error se propague a la siguiente línea.
+        RESULT = null; 
+      :} 
     ;
 
 /* --- DECLARACIONES --- */
@@ -222,6 +207,9 @@ sentencia ::=
     | bloque_mapa:bm {: RESULT = bm; :}
     | evento:ev     {: RESULT = ev; :}
     | REGRESA expresion:e SEMI {: ASTNode n = new ASTNode("Return"); n.addChild(e); RESULT = n; :}
+    | SALIR SEMI    {: RESULT = new ASTNode("Break"); :}
+    | SIGUE SEMI    {: RESULT = new ASTNode("Continue"); :}
+    | definicion:d  {: RESULT = d; :}
     | SEMI          {: RESULT = null; :}
     ;
 
@@ -249,16 +237,19 @@ flujo ::=
     // Loop con conteo: loop(5)
     | LOOP LPAREN expresion:e RPAREN bloque_interno:b
       {: ASTNode n = new ASTNode("Loop"); n.addChild(e); n.addChild(b); RESULT = n; :}
-      
-    | SALIR SEMI {: RESULT = new ASTNode("Break"); :}
-    | SIGUE SEMI {: RESULT = new ASTNode("Continue"); :}
+
     ;
 
 sino_opt ::= SINO bloque_interno:b {: RESULT = b; :} | /* epsilon */ {: RESULT = null; :};
 
 bloque_interno ::= 
       LBRACE sentencias_bloque:sb RBRACE {: RESULT = sb; :}
-    | sentencia_completa:s {: ASTNode n = new ASTNode("Bloque"); if(s!=null) n.addChild(s); RESULT = n; :}
+    | sentencia_completa:s 
+      {: 
+         ASTNode n = new ASTNode("Bloque"); 
+         if(s != null) n.addChild(s); 
+         RESULT = n; 
+      :}
     ;
 
 llamada ::= 
@@ -269,18 +260,10 @@ llamada ::=
 argumentos_opc ::= argumentos:a {: RESULT = a; :} | /* epsilon */ {: RESULT = new ASTNode("Args"); :};
 
 argumentos ::= 
-      expresion:e COMMA argumentos:sig 
-      {: 
-         if (sig != null) {
-             sig.children.add(0, e);
-             RESULT = sig;
-         } else {
-             ASTNode n = new ASTNode("Args");
-             n.addChild(e);
-             RESULT = n;
-         }
-      :}
-    | expresion:e {: ASTNode n = new ASTNode("Args"); n.addChild(e); RESULT = n; :}
+      argumentos:list COMMA expresion:e
+      {: list.addChild(e); RESULT = list; :}
+    | expresion:e 
+      {: ASTNode n = new ASTNode("Args"); n.addChild(e); RESULT = n; :}
     ;
 
 e_s ::= 

@@ -1,102 +1,67 @@
 program SistemaDeNavegacionReactiva {
     
-    // ==========================================================
-    // DECLARACIONES GLOBALES (No definidas en esta versión de gramática, 
-    // pero las ubicamos aquí por contexto. En esta versión, van en INICIO)
-    // ==========================================================
-
-    // ==========================================================
-    // DEFINICIÓN DE MÉTODOS Y RUTINAS
-    // ==========================================================
-    
-    // Método que simula la revisión de un estado (ej: batería)
+    // 1. DEFINICIONES
     metodo revisarBateria(num nivel_actual) {
-        
         bool estado_critico = nivel_actual < 10;
-        
         cuando (estado_critico == true) {
-            regresa true; // Batería baja
+            regresa true;
         } sino {
-            regresa false; // Batería OK
+            regresa false;
         }
     }
     
-    // Rutina para manejar el frenado y la alerta de peligro
     rutina alertaDePeligro {
-        
         stop;
         brake;
-        broadcast(message = "Peligro: Detención de Emergencia");
+        // Eliminamos "message ="
+        broadcast("Peligro: Detención de Emergencia");
     }
     
-    // ==========================================================
-    // BLOQUE PRINCIPAL (INICIO)
-    // ==========================================================
-    
+    // 2. INICIO
     inicio {
-        
-        // Declaraciones de Variables Locales
         num velocidad_maxima = 70;
         num bateria_nivel = 100;
-        bool en_peligro;
-        num distancia_sensor;
+        bool en_peligro = false;
+        num distancia_sensor = 20;
         
-        // 1. Configuración de la Ruta de Navegación
         salida("Configurando ruta...");
-        map ruta_principal[waypoint "WP1", waypoint "WP2", waypoint "WP3", waypoint "Final"];
-        navigate(destination = "Final");
         
-        // 2. Bucle principal de control del vehículo (Ciclo LOOP)
-        loop {
-            
-            // --- Lectura de Sensores ---
-            distancia_sensor = sensor[distance];
-            en_peligro = sensor[obstacle];
-            bateria_nivel = bateria_nivel - 1; // Simulación de consumo
+        // Ajustamos a la sintaxis simple de tu Parser.cup
+        // map["WP1", "WP2", "Final"]; 
+        navigate(destination = "Punto_B");
 
-            // --- Llamada a Método y Asignación
-            bool bateria_baja = revisarBateria(bateria_nivel);
+        mientras (bateria_nivel > 0) {
             
-            // --- Control de Flujo Lógico ---
+            bateria_nivel = bateria_nivel - 1;
+            distancia_sensor = sensor[distance];
             
-            cuando (bateria_baja == true) {
-                
+            cuando (bateria_nivel < 10) {
                 alertaDePeligro();
-                salida("ERROR: Batería baja. Detenido.");
-                
+                salida("ERROR: Batería baja.");
+                stop;
             } sino {
-                
-                // Si la batería está bien, checamos obstáculos/distancia
-                
-                cuando (en_peligro == true || distancia_sensor <= 5) {
-                    
-                    // Llamada a Rutina de Alerta
-                    alertaDePeligro(); 
-                    salida("Obstáculo o distancia crítica.");
-                    
+                cuando (distancia_sensor <= 5) {
+                    alertaDePeligro();
+                    salida("Obstáculo detectado.");
                 } sino {
-                    
-                    // Si no hay peligro, aceleramos hasta el límite
-                    mientras (sensor[speed] < velocidad_maxima) {
-                        accelerate;
+                    mientras (speed < velocidad_maxima) {
+                        accelerate; // Usamos el token de acción
                     }
-                    move 5; // Mover hacia adelante
-                    
+                    move(5); // Agregamos paréntesis
                 }
             }
-            
-            // Esperar un momento antes de la siguiente iteración
+
             wait(1); 
             
-            // 3. Recepción de mensajes externos (interacción)
             str mensaje_externo;
-            receive(message = mensaje_externo);
+            // Eliminamos "message ="
+            receive(mensaje_externo);
             
-            cuando (mensaje_externo == "RUTA_CANCELADA") {
-                salida("Recibido: Ruta Cancelada. Deteniendo.");
-                break;
+            cuando (mensaje_externo == "CANCELAR") {
+                salida("Ruta Cancelada.");
+                salir; // Cambiamos break por salir
             }
         }
-        
-    } end 
+    } 
+    end 
 }

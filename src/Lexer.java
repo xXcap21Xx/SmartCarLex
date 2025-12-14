@@ -1092,12 +1092,12 @@ private Symbol token(String lexeme, String lexicalComp, int line, int column, in
           // fall through
           case 97: break;
           case 21:
-            { return token(yytext(), "LBRACE", yyline, yycolumn, sym.LBRACE);
+            { seEsperaPuntoYComa = false; return token(yytext(), "LBRACE", yyline, yycolumn, sym.LBRACE);
             }
           // fall through
           case 98: break;
           case 22:
-            { return token(yytext(), "RBRACE", yyline, yycolumn, sym.RBRACE);
+            { seEsperaPuntoYComa = false; return token(yytext(), "RBRACE", yyline, yycolumn, sym.RBRACE);
             }
           // fall through
           case 99: break;

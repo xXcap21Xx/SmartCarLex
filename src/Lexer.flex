@@ -161,8 +161,8 @@ StringLiteral  = \"([^\\\"]|\\.)*\"
 ","             { return token(yytext(), "COMMA", yyline, yycolumn, sym.COMMA); }
 "("             { return token(yytext(), "LPAREN", yyline, yycolumn, sym.LPAREN); }
 ")"             { return token(yytext(), "RPAREN", yyline, yycolumn, sym.RPAREN); } // <- Este activa la bandera en el if del token()
-"{"             { return token(yytext(), "LBRACE", yyline, yycolumn, sym.LBRACE); }
-"}"             { return token(yytext(), "RBRACE", yyline, yycolumn, sym.RBRACE); }
+"{"             { seEsperaPuntoYComa = false; return token(yytext(), "LBRACE", yyline, yycolumn, sym.LBRACE); }
+"}"             { seEsperaPuntoYComa = false; return token(yytext(), "RBRACE", yyline, yycolumn, sym.RBRACE); }
 "["             { return token(yytext(), "LBRACK", yyline, yycolumn, sym.LBRACK); }
 "]"             { return token(yytext(), "RBRACK", yyline, yycolumn, sym.RBRACK); }
 

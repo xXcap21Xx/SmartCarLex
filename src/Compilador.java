@@ -340,8 +340,52 @@ public class Compilador extends javax.swing.JFrame {
             String tipoToken = t.getLexicalComp();
             String lexema = t.getLexeme();
 
-            if (tipoToken.equals("NUM") || tipoToken.equals("BOOL") || tipoToken.equals("STR")
-                    || tipoToken.equals("VAR") || tipoToken.equals("CONST") || tipoToken.equals("SET")) {
+            if (tipoToken.equals("PROGRAM")) {
+                if (i + 1 < tokens.size()) {
+                    Token nextToken = tokens.get(i + 1);
+                    if (nextToken.getLexicalComp().equals("ID")) {
+                        // Lo registramos como tipo "Programa" y valor "Raíz/Sistema"
+                        agregarSimboloSiNoExiste(
+                                nextToken.getLexeme(),
+                                "Programa",
+                                "Inicialización",
+                                nextToken.getLine(),
+                                nextToken.getColumn()
+                        );
+                    }
+                }
+                else if (tipoToken.equals("METODO")) {
+                    if (i + 1 < tokens.size()) {
+                        Token nextToken = tokens.get(i + 1);
+                        if (nextToken.getLexicalComp().equals("ID")) {
+                            // Lo registramos específicamente como "Método"
+                            agregarSimboloSiNoExiste(
+                                    nextToken.getLexeme(),
+                                    "Método",
+                                    "Definición",
+                                    nextToken.getLine(),
+                                    nextToken.getColumn()
+                            );
+                        }
+                    }
+                } else if (tipoToken.equals("RUTINA")) {
+                    if (i + 1 < tokens.size()) {
+                        Token nextToken = tokens.get(i + 1);
+                        if (nextToken.getLexicalComp().equals("ID")) {
+                            // Lo registramos específicamente como "Rutina"
+                            agregarSimboloSiNoExiste(
+                                    nextToken.getLexeme(),
+                                    "Rutina",
+                                    "Acción",
+                                    nextToken.getLine(),
+                                    nextToken.getColumn()
+                            );
+                        }
+                    }
+                }
+            } else if (tipoToken.equals("NUM") || tipoToken.equals("BOOL") || tipoToken.equals("STR")
+                    || tipoToken.equals("VAR") || tipoToken.equals("CONST") || tipoToken.equals("ROUTE")
+                    || tipoToken.equals("SET")) {
 
                 if (i + 1 < tokens.size()) {
                     Token nextToken = tokens.get(i + 1);
