@@ -55,6 +55,7 @@ terminal SEMI, COMMA, LPAREN, RPAREN, LBRACE, RBRACE, LBRACK, RBRACK;
 
 /* ====================== 2. NO TERMINALES ====================== */
 non terminal ASTNode S;
+non terminal ASTNode contenido_programa, bloque_inicio, bloque_final;
 non terminal ASTNode definiciones_principales, definicion;
 non terminal ASTNode parametros_opc, parametros, parametro;
 non terminal ASTNode sentencias_bloque, sentencia_completa;
@@ -80,26 +81,60 @@ precedence nonassoc SINO;
 start with S;
 
 S ::= 
-    // OPCIÓN 1: Estructura correcta (La que ya tienes)
-    PROGRAM ID:id LBRACE definiciones_principales:defs INICIO LBRACE sentencias_bloque:sents RBRACE END RBRACE
+    PROGRAM ID:id LBRACE contenido_programa:c RBRACE
     {: 
        ASTNode n = new ASTNode("Program: " + id.getLexeme());
-       if(defs != null) { for(ASTNode child : defs.children) n.addChild(child); }
-       ASTNode mainNode = new ASTNode("Inicio");
-       if(sents != null) { for(ASTNode child : sents.children) mainNode.addChild(child); }
-       n.addChild(mainNode);
-       RESULT = n; 
+       if(c != null) {
+           for(ASTNode child : c.children) n.addChild(child);
+       }
+       RESULT = n;
     :}
-    
-    // OPCIÓN 2: TRAMPA DE ERROR (Si falta la llave '{' después del nombre del programa)
-    | PROGRAM ID:id error 
+    | PROGRAM ID:id error
     {: 
-       // Reportamos el error exacto indicando que falta la llave de apertura
        parser.errors.add(new TError(id.getLine(), id.getColumn(), 
-           "Error Sintáctico: Falta la llave '{' para iniciar el bloque del programa '" + id.getLexeme() + "'"));
+           "Error Sintáctico: Falta abrir el bloque principal con '{' o error en la cabecera."));
        RESULT = new ASTNode("Error_Raiz");
     :}
     ;
+
+contenido_programa ::=
+    definiciones_principales:defs bloque_inicio:bi bloque_final:bf
+    {:
+       ASTNode n = new ASTNode("Contenido");
+       if(defs != null) n.addChild(defs);
+       if(bi != null) n.addChild(bi);
+       if(bf != null) n.addChild(bf);
+       RESULT = n;
+    :}
+    ;
+
+/* --- BLOQUE INICIO PROTEGIDO --- */
+bloque_inicio ::=
+    INICIO LBRACE sentencias_bloque:s RBRACE
+    {: 
+       ASTNode n = new ASTNode("Inicio");
+       if(s != null) n.addChild(s);
+       RESULT = n;
+    :}
+    | error 
+    {: 
+       // Este error se dispara si no encuentra la palabra 'inicio'
+       parser.errors.add(new TError(0, 0, "Error Sintáctico: Se requiere el bloque obligatorio 'inicio { ... }'"));
+       RESULT = null;
+    :}
+    ;
+
+/* --- BLOQUE FINAL PROTEGIDO --- */
+bloque_final ::=
+    END
+    {: RESULT = new ASTNode("End"); :}
+    | /* épsilon */
+    {: 
+       parser.errors.add(new TError(0, 0, "Error Sintáctico: Falta la palabra clave 'end' para cerrar el programa."));
+       RESULT = null;
+    :}
+    ;
+
 /* --- DEFINICIONES --- */
 definiciones_principales ::= 
       definiciones_principales:list definicion:d
@@ -140,25 +175,15 @@ parametro ::= tipo:t ID:id {: ASTNode n = new ASTNode("Param: " + id.getLexeme()
 /* --- BLOQUES --- */
 sentencias_bloque ::= 
       sentencias_bloque:list sentencia_completa:s
-      {: 
-         if(s != null) list.addChild(s); 
-         RESULT = list; 
-      :}
-    | /* epsilon */ 
-      {: 
-         RESULT = new ASTNode("Bloque"); 
-      :}
+      {: if(s != null) list.addChild(s); RESULT = list; :}
+    | /* epsilon */ {: RESULT = new ASTNode("Bloque"); :}
     ;
 
 sentencia_completa ::= 
       declaracion:d {: RESULT = d; :}
     | sentencia:s   {: RESULT = s; :}
-    | error SEMI    
-      {: 
-        // Si hay un error en una instrucción, saltamos hasta el ';' 
-        // Esto evita que el error se propague a la siguiente línea.
-        RESULT = null; 
-      :} 
+    // Si algo falla aquí, el parser busca el próximo ';' y se limpia.
+    | error SEMI    {: RESULT = null; :} 
     ;
 
 /* --- DECLARACIONES --- */
@@ -171,9 +196,6 @@ declaracion ::=
          if(init != null) n.addChild(init); 
          RESULT = n; 
       :}
-      
-    // Declaración de ARREGLOS: num lista[5];
-    // CORRECCIÓN AQUÍ: Cambiamos 'ASTNode n' por 'ASTNode node' para no chocar con 'NUMBER:n'
     | tipo:t ID:id LBRACK NUMBER:n RBRACK SEMI
       {: 
          ASTNode node = new ASTNode("ArrayDecl: " + id.getLexeme()); 
@@ -181,6 +203,13 @@ declaracion ::=
          // Ahora sí, 'n' se refiere al token NUMBER
          node.addChild(new ASTNode("Size: " + n.getLexeme()));
          RESULT = node; 
+      :}
+    | tipo:t ASSIGN expresion:e SEMI
+      {: 
+         // Reportamos el error usando las coordenadas del tipo 't'
+         parser.errors.add(new TError(tleft, tright, 
+            "Error Sintáctico: Falta el nombre de la variable (ID) en la declaración"));
+         RESULT = null; // Retornamos null para que el árbol ignore esta línea errónea
       :}
       
     | CONST ID:id ASSIGN expresion:e SEMI
@@ -268,10 +297,17 @@ argumentos ::=
     ;
 
 e_s ::= 
-      SALIDA LPAREN expresion:e RPAREN SEMI {: ASTNode n = new ASTNode("Salida"); n.addChild(e); RESULT = n; :}
-    | ENTRADA LPAREN ID:id RPAREN SEMI {: ASTNode n = new ASTNode("Entrada: " + id.getLexeme()); RESULT = n; :}
+      SALIDA LPAREN expresion:e RPAREN SEMI 
+      {: ASTNode n = new ASTNode("Salida"); n.addChild(e); RESULT = n; :}
+    | SALIDA LPAREN error RPAREN SEMI
+      {: 
+         // Esta regla se activa si el contenido de los paréntesis está mal
+         parser.errors.add(new TError(0, 0, "Error en salida: Verifique comillas o argumentos"));
+         RESULT = null;
+      :}
     ;
 
+/* --- ACCIONES --- */
 accion ::= 
       MOVE valor_accion:v SEMI {: ASTNode n = new ASTNode("Move"); if(v!=null) n.addChild(v); RESULT = n; :}
     | TURN valor_accion:v SEMI {: ASTNode n = new ASTNode("Turn"); if(v!=null) n.addChild(v); RESULT = n; :}
@@ -282,6 +318,11 @@ accion ::=
     | BRAKE SEMI {: RESULT = new ASTNode("Action:Brake"); :}
     | WAIT LPAREN expresion:e RPAREN SEMI {: ASTNode n = new ASTNode("Wait"); n.addChild(e); RESULT = n; :}
     | BROADCAST LPAREN expresion:e RPAREN SEMI {: ASTNode n = new ASTNode("Broadcast"); n.addChild(e); RESULT = n; :}
+    | BROADCAST LPAREN error:e RPAREN SEMI
+      {: 
+         parser.errors.add(new TError(eleft, eright, "Error en broadcast: Verifique que las comillas del mensaje estén cerradas"));
+         RESULT = null;
+      :}
     | RECEIVE LPAREN ID:id RPAREN SEMI {: ASTNode n = new ASTNode("Receive -> " + id.getLexeme()); RESULT = n; :}
     ;
 

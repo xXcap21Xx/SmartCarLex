@@ -176,3 +176,27 @@ StringLiteral  = \"([^\\\"]|\\.)*\"
     lexerErrors.add(new TError(yyline+1, yycolumn+1, "Error Léxico: Caracter inválido '" + yytext() + "'"));
     return token(yytext(), "ERROR", yyline, yycolumn, sym.ERROR);
 }
+
+// 1. Cadena VÁLIDA: Se abre y cierra en la misma línea
+\" [^\"\n\r]* \" { 
+    return token(yytext(), "STRING", yyline, yycolumn, sym.STRING); 
+}
+
+// 2. ERROR: Cadena sin cerrar. 
+// IMPORTANTE: El [^\"\n\r\)\;]* impide que el error se coma el ')' y el ';'
+\" [^\"\n\r\)\;]* { 
+    String msg = "Error Léxico: Comillas sin cerrar en esta línea";
+    lexerErrors.add(new TError(yyline + 1, yycolumn, msg));
+    
+    // Devolvemos un STRING para que el Parser crea que la función está completa
+    // y pueda encontrar el ')' y el ';' que dejamos libres.
+    return token(yytext(), "STRING", yyline, yycolumn, sym.STRING);
+}
+
+[^] { 
+    // Captura CUALQUIER carácter que no haya coincidido con las reglas de arriba
+    // EXCEPTO espacios y saltos de línea que ya deben estar gestionados
+    if (!yytext().trim().isEmpty()) {
+        lexerErrors.add(new TError(yyline + 1, yycolumn, "Error Léxico: Caracter inválido '" + yytext() + "'"));
+    }
+}
