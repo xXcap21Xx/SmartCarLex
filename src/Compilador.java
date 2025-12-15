@@ -588,6 +588,7 @@ public class Compilador extends javax.swing.JFrame {
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         getContentPane().setLayout(new javax.swing.BoxLayout(getContentPane(), javax.swing.BoxLayout.LINE_AXIS));
 
+        btn_Nuevo.setBackground(new java.awt.Color(0, 153, 51));
         btn_Nuevo.setFont(new java.awt.Font("Consolas", 1, 14)); // NOI18N
         btn_Nuevo.setText("Nuevo");
         btn_Nuevo.addActionListener(new java.awt.event.ActionListener() {
@@ -596,6 +597,7 @@ public class Compilador extends javax.swing.JFrame {
             }
         });
 
+        btn_Abrir.setBackground(new java.awt.Color(0, 204, 51));
         btn_Abrir.setFont(new java.awt.Font("Consolas", 1, 14)); // NOI18N
         btn_Abrir.setText("Abrir");
         btn_Abrir.addActionListener(new java.awt.event.ActionListener() {
@@ -604,6 +606,7 @@ public class Compilador extends javax.swing.JFrame {
             }
         });
 
+        btn_GuardarC.setBackground(new java.awt.Color(0, 153, 153));
         btn_GuardarC.setFont(new java.awt.Font("Consolas", 1, 14)); // NOI18N
         btn_GuardarC.setText("Guardar Como");
         btn_GuardarC.addActionListener(new java.awt.event.ActionListener() {
@@ -612,6 +615,7 @@ public class Compilador extends javax.swing.JFrame {
             }
         });
 
+        btn_Guardar.setBackground(new java.awt.Color(0, 204, 153));
         btn_Guardar.setFont(new java.awt.Font("Consolas", 1, 14)); // NOI18N
         btn_Guardar.setText("Guardar");
         btn_Guardar.addActionListener(new java.awt.event.ActionListener() {
@@ -647,6 +651,7 @@ public class Compilador extends javax.swing.JFrame {
                 .addContainerGap())
         );
 
+        btn_Compilar.setBackground(new java.awt.Color(0, 204, 204));
         btn_Compilar.setFont(new java.awt.Font("Consolas", 1, 14)); // NOI18N
         btn_Compilar.setText("Compilar");
         btn_Compilar.addActionListener(new java.awt.event.ActionListener() {
@@ -655,6 +660,7 @@ public class Compilador extends javax.swing.JFrame {
             }
         });
 
+        btn_Ejecutar.setBackground(new java.awt.Color(51, 255, 204));
         btn_Ejecutar.setFont(new java.awt.Font("Consolas", 1, 14)); // NOI18N
         btn_Ejecutar.setText("Ejecutar");
         btn_Ejecutar.addActionListener(new java.awt.event.ActionListener() {
@@ -663,6 +669,7 @@ public class Compilador extends javax.swing.JFrame {
             }
         });
 
+        btn_VerArbol.setBackground(new java.awt.Color(204, 204, 0));
         btn_VerArbol.setFont(new java.awt.Font("Consolas", 1, 14)); // NOI18N
         btn_VerArbol.setText("Arbol de Derivacion");
         btn_VerArbol.addActionListener(new java.awt.event.ActionListener() {
