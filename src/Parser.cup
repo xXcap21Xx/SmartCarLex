@@ -211,6 +211,12 @@ declaracion ::=
             "Error Sintáctico: Falta el nombre de la variable (ID) en la declaración"));
          RESULT = null; // Retornamos null para que el árbol ignore esta línea errónea
       :}
+    | tipo:t ID:id MAP LBRACK ruta:r RBRACK SEMI
+      {: 
+         parser.errors.add(new TError(id.getLine(), id.getColumn(), 
+             "Error Sintáctico: Falta el operador de asignación '=' antes de definir el mapa."));
+         RESULT = null; 
+      :}
       
     | CONST ID:id ASSIGN expresion:e SEMI
       {: ASTNode n = new ASTNode("Const: " + id.getLexeme()); n.addChild(e); RESULT = n; :}
@@ -255,31 +261,70 @@ asignacion ::=
 
 /* --- CONTROL DE FLUJO --- */
 flujo ::= 
-      CUANDO LPAREN expresion:e RPAREN bloque_interno:b sino_opt:s
-      {: ASTNode n = new ASTNode("Cuando"); n.addChild(e); n.addChild(b); if(s!=null) n.addChild(s); RESULT = n; :}
-    | MIENTRAS LPAREN expresion:e RPAREN bloque_interno:b
-      {: ASTNode n = new ASTNode("Mientras"); n.addChild(e); n.addChild(b); RESULT = n; :}
-    
-    // Loop infinito o simple
-    | LOOP bloque_interno:b
-      {: ASTNode n = new ASTNode("Loop"); n.addChild(b); RESULT = n; :}
+    /* ==================== 1. CICLO MIENTRAS ==================== */
       
-    // Loop con conteo: loop(5)
+    // A. Sintaxis Correcta
+      MIENTRAS LPAREN expresion:e RPAREN bloque_interno:b
+      {: ASTNode n = new ASTNode("Mientras"); n.addChild(e); n.addChild(b); RESULT = n; :}
+
+    // B. Error: Condición Vacía 'mientras()'
+    | MIENTRAS LPAREN RPAREN bloque_interno:b
+      {: parser.errors.add(new TError(bleft, bright, "Error Sintáctico: La condición del 'mientras' no puede estar vacía ().")); RESULT = null; :}
+
+    // C. Error: Falta paréntesis de apertura 'mientras x < 10)'
+    | MIENTRAS error:e expresion:expr RPAREN bloque_interno:b
+      {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Falta paréntesis de apertura '(' en el ciclo 'mientras'.")); RESULT = null; :}
+
+    // D. Error: Falta paréntesis de cierre 'mientras (x < 10'
+    | MIENTRAS LPAREN expresion:expr error:e bloque_interno:b
+      {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Falta paréntesis de cierre ')' en el ciclo 'mientras'.")); RESULT = null; :}
+
+
+    /* ==================== 2. CONDICIONAL CUANDO ==================== */
+
+    // A. Sintaxis Correcta
+    | CUANDO LPAREN expresion:e RPAREN bloque_interno:b sino_opt:s
+      {: ASTNode n = new ASTNode("Cuando"); n.addChild(e); n.addChild(b); if(s!=null) n.addChild(s); RESULT = n; :}
+
+    // B. Error: Condición Vacía 'cuando()'
+    | CUANDO LPAREN RPAREN bloque_interno:b sino_opt:s
+      {: parser.errors.add(new TError(bleft, bright, "Error Sintáctico: La condición del 'cuando' no puede estar vacía ().")); RESULT = null; :}
+
+    // C. Error: Falta paréntesis de apertura 'cuando x == 1)'
+    | CUANDO error:e expresion:expr RPAREN bloque_interno:b sino_opt:s
+      {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Falta paréntesis de apertura '(' en 'cuando'.")); RESULT = null; :}
+
+    // D. Error: Falta paréntesis de cierre 'cuando (x == 1'
+    | CUANDO LPAREN expresion:expr error:e bloque_interno:b sino_opt:s
+      {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Falta paréntesis de cierre ')' en 'cuando'.")); RESULT = null; :}
+
+
+    /* ==================== 3. CICLO LOOP ==================== */
+    
+    // A. Sintaxis Correcta (Con condición) -> loop(x < 5)
     | LOOP LPAREN expresion:e RPAREN bloque_interno:b
       {: ASTNode n = new ASTNode("Loop"); n.addChild(e); n.addChild(b); RESULT = n; :}
 
+    // B. Error: Condición Vacía -> loop()
+    | LOOP LPAREN RPAREN bloque_interno:b
+      {: parser.errors.add(new TError(bleft, bright, "Error Sintáctico: La condición del 'loop' no puede estar vacía.")); RESULT = null; :}
+
+    // C. Error: Falta paréntesis de cierre -> loop (x < 5
+    // NOTA: En LOOP no validamos "falta de apertura" igual que en 'mientras' porque "loop { }" es válido sin paréntesis.
+    | LOOP LPAREN expresion:e error:err bloque_interno:b
+      {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Falta paréntesis de cierre ')' en el ciclo 'loop'.")); RESULT = null; :}
+    
+    // D. Sintaxis Correcta (Infinito/Simple) -> loop { ... }
+    | LOOP bloque_interno:b
+      {: ASTNode n = new ASTNode("LoopInfinito"); n.addChild(b); RESULT = n; :}
     ;
 
 sino_opt ::= SINO bloque_interno:b {: RESULT = b; :} | /* epsilon */ {: RESULT = null; :};
 
+/* --- BLOQUE INTERNO SIN CONFLICTOS --- */
 bloque_interno ::= 
       LBRACE sentencias_bloque:sb RBRACE {: RESULT = sb; :}
-    | sentencia_completa:s 
-      {: 
-         ASTNode n = new ASTNode("Bloque"); 
-         if(s != null) n.addChild(s); 
-         RESULT = n; 
-      :}
+    | sentencia_completa:s {: ASTNode n = new ASTNode("Bloque"); if(s!=null) n.addChild(s); RESULT = n; :}
     ;
 
 llamada ::= 
@@ -361,7 +406,8 @@ termino ::=
 
 factor ::= 
       // 1. Llamada a función: id(args)
-      ID:id LPAREN argumentos_opc:args RPAREN {: ASTNode n = new ASTNode("CallExpr: " + id.getLexeme()); n.addChild(args); RESULT = n; :}
+      ID:id LPAREN argumentos_opc:args RPAREN {: ASTNode n = new ASTNode("CallExpr: " + id.getLexeme());
+      n.addChild(args); RESULT = n; :}
     
     // 2. Acceso a arreglo: id[idx]
     | ID:id LBRACK expresion:idx RBRACK {: ASTNode n = new ASTNode("ArrayGet: " + id.getLexeme()); n.addChild(idx); RESULT = n; :}
@@ -370,20 +416,31 @@ factor ::=
     
     // 3. Variable simple: id
     | ID:id {: RESULT = new ASTNode("ID: " + id.getLexeme()); :}
-    
     | NUMBER:n {: RESULT = new ASTNode("Val: " + n.getLexeme()); :}
     | STRING:s {: RESULT = new ASTNode("Val: " + s.getLexeme()); :}
     | TRUE {: RESULT = new ASTNode("Val: True"); :}
     | FALSE {: RESULT = new ASTNode("Val: False"); :}
     | unario:u {: RESULT = u; :}
+    
+    // Lecturas de Sistema
     | SPEED {: RESULT = new ASTNode("SystemRead:Speed"); :}
     | DISTANCE {: RESULT = new ASTNode("SystemRead:Distance"); :}
     | OBSTACLE {: RESULT = new ASTNode("SystemRead:Obstacle"); :}
     | GPS {: RESULT = new ASTNode("SystemRead:GPS"); :}
     | VEHICLE_ID {: RESULT = new ASTNode("SystemRead:VehicleID"); :}
     | GPS LPAREN RPAREN {: RESULT = new ASTNode("SystemRead:GPS_Call"); :}
+    
+    /* --- AQUÍ ESTABA EL DUPLICADO --- */
+    // Regla correcta (solo debe estar UNA vez)
     | MAP LBRACK ruta:r RBRACK 
       {: ASTNode n = new ASTNode("MapExpr"); n.addChild(r); RESULT = n; :}
+
+    // Regla de ERROR: Mapa vacío
+    | MAP LBRACK RBRACK 
+      {: 
+         parser.errors.add(new TError(0, 0, "Error Sintáctico: El mapa no puede estar vacío. Debe contener al menos un 'waypoint'."));
+         RESULT = new ASTNode("Error_Map_Vacio");
+      :}
     ;
 
 unario ::= 

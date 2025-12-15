@@ -1,67 +1,58 @@
-program SistemaDeNavegacionReactiva {
-    
-    // 1. DEFINICIONES
-    metodo revisarBateria(num nivel_actual) {
-        bool estado_critico = nivel_actual < 10;
-        cuando (estado_critico == true) {
-            regresa true;
-        } sino {
-            regresa false;
-        }
-    }
-    
-    rutina alertaDePeligro {
-        stop;
-        brake;
-        // Eliminamos "message ="
-        broadcast("Peligro: Detención de Emergencia");
-    }
-    
-    // 2. INICIO
+program DemoCiclos {
+
     inicio {
-        num velocidad_maxima = 70;
-        num bateria_nivel = 100;
-        bool en_peligro = false;
-        num distancia_sensor = 20;
-        
-        salida("Configurando ruta...");
-        
-        // Ajustamos a la sintaxis simple de tu Parser.cup
-        // map["WP1", "WP2", "Final"]; 
-        navigate(destination = "Punto_B");
 
-        mientras (bateria_nivel > 0) {
+    // Declaraciones globales permitidas
+    num contador = 0;
+    num energia = 100;
+    bool sistema_activo = true;
+
+        salida("Iniciando pruebas de ciclos...");
+
+        // -------------------------------------------------------
+        // 1. CICLO MIENTRAS (While Standard)
+        // -------------------------------------------------------
+        // Si quitas el '(' o ')', el parser ahora te dirá exactamente cuál falta.
+        mientras (contador < 3) {
+            salida("Contador MIENTRAS actual:");
+            salida(contador);
             
-            bateria_nivel = bateria_nivel - 1;
-            distancia_sensor = sensor[distance];
-            
-            cuando (bateria_nivel < 10) {
-                alertaDePeligro();
-                salida("ERROR: Batería baja.");
-                stop;
-            } sino {
-                cuando (distancia_sensor <= 5) {
-                    alertaDePeligro();
-                    salida("Obstáculo detectado.");
-                } sino {
-                    mientras (speed < velocidad_maxima) {
-                        accelerate; // Usamos el token de acción
-                    }
-                    move(5); // Agregamos paréntesis
-                }
+            contador = contador + 1;
+            energia = energia - 10;
+            wait(1);
+        }
+
+        // -------------------------------------------------------
+        // 2. CICLO LOOP CON CONDICIÓN (Tipo Repeat/Until)
+        // -------------------------------------------------------
+        salida("--- Entrando a LOOP condicional ---");
+        
+        loop (energia > 50) {
+            salida("Consumiendo energía en LOOP...");
+            salida(energia);
+            energia = energia - 20;
+        }
+
+        // -------------------------------------------------------
+        // 3. CICLO LOOP SIMPLE (Bloque infinito/continuo)
+        // -------------------------------------------------------
+        // Tu gramática también permite 'loop { ... }' sin paréntesis
+        // Si olvidas la llave '{', ahora recibirás el error: "Falta abrir el bloque..."
+        
+        loop {
+            salida("Ejecutando bloque LOOP simple");
+
+            // Estructura CUANDO anidada para probar bloques internos
+            cuando (energia <= 50) {
+                salida("Energía baja detectada. Deteniendo sistema.");
+                sistema_activo = false;
             }
 
-            wait(1); 
-            
-            str mensaje_externo;
-            // Eliminamos "message ="
-            receive(mensaje_externo);
-            
-            cuando (mensaje_externo == "CANCELAR") {
-                salida("Ruta Cancelada.");
-                salir; // Cambiamos break por salir
+            // Condición de salida para no quedarnos pegados
+            cuando (sistema_activo == false) {
+                stop; // Detiene la ejecución del programa
             }
         }
-    } 
-    end 
+    }
+    end
 }
