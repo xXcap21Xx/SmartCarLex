@@ -1,58 +1,34 @@
-program DemoCiclos {
+program SistemaDePatrullaje {
 
-    inicio {
+     inicio{
+        // 1. Definición de una ruta compleja usando el nuevo tipo route
+        route ruta_patrulla = map[waypoint "Zona_A", waypoint "Sector_7", waypoint "Base_Norte"];
 
-    // Declaraciones globales permitidas
-    num contador = 0;
-    num energia = 100;
-    bool sistema_activo = true;
+        // 2. Variables de control
+        num vueltas = 0;
+        bool patrullando = true;
 
-        salida("Iniciando pruebas de ciclos...");
+        salida("Iniciando patrulla operativa...");
 
-        // -------------------------------------------------------
-        // 1. CICLO MIENTRAS (While Standard)
-        // -------------------------------------------------------
-        // Si quitas el '(' o ')', el parser ahora te dirá exactamente cuál falta.
-        mientras (contador < 3) {
-            salida("Contador MIENTRAS actual:");
-            salida(contador);
+        mientras (patrullando == true) {
             
-            contador = contador + 1;
-            energia = energia - 10;
-            wait(1);
-        }
+            // 3. Uso de la ruta guardada para navegar
+            // (Asumiendo que tu comando navigate acepta variables de tipo route)
+            navigate(destination = ruta_patrulla);
+            
+            vueltas = vueltas + 1;
+            salida("Vuelta de patrulla completada: ");
+            salida(vueltas);
 
-        // -------------------------------------------------------
-        // 2. CICLO LOOP CON CONDICIÓN (Tipo Repeat/Until)
-        // -------------------------------------------------------
-        salida("--- Entrando a LOOP condicional ---");
-        
-        loop (energia > 50) {
-            salida("Consumiendo energía en LOOP...");
-            salida(energia);
-            energia = energia - 20;
-        }
-
-        // -------------------------------------------------------
-        // 3. CICLO LOOP SIMPLE (Bloque infinito/continuo)
-        // -------------------------------------------------------
-        // Tu gramática también permite 'loop { ... }' sin paréntesis
-        // Si olvidas la llave '{', ahora recibirás el error: "Falta abrir el bloque..."
-        
-        loop {
-            salida("Ejecutando bloque LOOP simple");
-
-            // Estructura CUANDO anidada para probar bloques internos
-            cuando (energia <= 50) {
-                salida("Energía baja detectada. Deteniendo sistema.");
-                sistema_activo = false;
+            cuando (vueltas >= 5) {
+                patrullando = false;
+                salida("Patrulla finalizada. Regresando...");
             }
-
-            // Condición de salida para no quedarnos pegados
-            cuando (sistema_activo == false) {
-                stop; // Detiene la ejecución del programa
-            }
+            
+            wait(2);
         }
+
+        stop;
     }
     end
 }
