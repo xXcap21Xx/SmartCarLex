@@ -1,34 +1,14 @@
-program SistemaDePatrullaje {
+program MiRobot {
+    // 1. Bloque obligatorio de inicio
+    inicio {
+    // 2. Definiciones principales
+    num distancia = 05;
 
-     inicio{
-        // 1. Definición de una ruta compleja usando el nuevo tipo route
-        route ruta_patrulla = map[waypoint "Zona_A", waypoint "Sector_7", waypoint "Base_Norte"];
-
-        // 2. Variables de control
-        num vueltas = 0;
-        bool patrullando = true;
-
-        salida("Iniciando patrulla operativa...");
-
-        mientras (patrullando == true) {
-            
-            // 3. Uso de la ruta guardada para navegar
-            // (Asumiendo que tu comando navigate acepta variables de tipo route)
-            navigate(destination = ruta_patrulla);
-            
-            vueltas = vueltas + 1;
-            salida("Vuelta de patrulla completada: ");
-            salida(vueltas);
-
-            cuando (vueltas >= 5) {
-                patrullando = false;
-                salida("Patrulla finalizada. Regresando...");
-            }
-            
-            wait(2);
-        }
-
+        salida("Iniciando movimiento...");
+        move(distancia);
         stop;
     }
+
+    // 3. Bloque obligatorio de fin
     end
 }

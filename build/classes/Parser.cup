@@ -81,19 +81,42 @@ precedence nonassoc SINO;
 start with S;
 
 S ::= 
+    // A. CASO CORRECTO: program ID { ... }
     PROGRAM ID:id LBRACE contenido_programa:c RBRACE
     {: 
        ASTNode n = new ASTNode("Program: " + id.getLexeme());
        if(c != null) {
+           // Copiamos los hijos del contenido al nodo principal
            for(ASTNode child : c.children) n.addChild(child);
        }
        RESULT = n;
     :}
+
+    // B. ERROR: Falta el nombre del programa (program { ... })
+    // Detectamos que después de 'program' sigue inmediatamente una llave '{'
+    | PROGRAM LBRACE:lb contenido_programa:c RBRACE
+    {: 
+        parser.errors.add(new TError(lbleft, lbright, 
+            "Error Sintáctico: El programa debe tener un nombre (ID) antes de abrir las llaves '{'."));
+        RESULT = new ASTNode("Error_Raiz_SinID"); 
+    :}
+    
+    // C. ERROR: Nombre inválido (program 123 { ... })
+    // Detectamos que hay algo incorrecto entre 'program' y '{'
+    | PROGRAM error:e LBRACE contenido_programa:c RBRACE
+    {: 
+        parser.errors.add(new TError(eleft, eright, 
+            "Error Sintáctico: El nombre del programa es inválido. Se esperaba un identificador (ID)."));
+        RESULT = new ASTNode("Error_Raiz_NombreInvalido"); 
+    :}
+
+    // D. ERROR: Falta abrir llaves (program ID ...)
+    // Este ya lo tenías, detecta si falta el '{' después del ID
     | PROGRAM ID:id error
     {: 
        parser.errors.add(new TError(id.getLine(), id.getColumn(), 
            "Error Sintáctico: Falta abrir el bloque principal con '{' o error en la cabecera."));
-       RESULT = new ASTNode("Error_Raiz");
+       RESULT = new ASTNode("Error_Raiz_SinLlave");
     :}
     ;
 
