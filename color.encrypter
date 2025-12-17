@@ -1,38 +1,15 @@
-program DemoCiclos {
-
+program PruebaOrtografia {
     inicio {
-
-    // Declaraciones globales permitidas
-    num contador = 0;
-    num energia = 100;
-    bool sistema_activo = true;
-
-        salida ("Iniciando pruebas de ciclos...");
-
-        // -------------------------------------------------------
-        // 1. CICLO MIENTRAS (While Standard)
-        // -------------------------------------------------------
-        // Si quitas el '(' o ')', el parser ahora te dirá exactamente cuál falta.
-        mientras (contador < 3) {
-            salida("Contador MIENTRAS actual:");
-            salida(contador);
+        // Correcto
+        mientras (true) {
             
-            contador = contador + 1;
-            energia = energia - 10;
-            wait(1);
+            // Error de dedo: "sto" en vez de "stop"
+            // El parser pensará que 'sto' es una variable o función, 
+            // dará error de sintaxis, pero el corrector sugerirá "stop".
+            stop; 
+            
+            salir;
         }
-
-        // -------------------------------------------------------
-        // 2. CICLO LOOP CON CONDICIÓN (Tipo Repeat/Until)
-        // -------------------------------------------------------
-        salida("--- Entrando a LOOP condicional ---");
-        
-        loop (energia > 50) {
-            salida("Consumiendo energía en LOOP...");
-            salida(energia);
-            energia = energia - 20;
-        }
-
     }
     end
 }

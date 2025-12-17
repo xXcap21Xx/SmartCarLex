@@ -337,13 +337,12 @@ public class Compilador extends javax.swing.JFrame {
          */
     }
 
-    private void semanticAnalysis() {
+private void semanticAnalysis() {
         tablaSimbolos.clear();
         String nombrePrograma = "";
 
         // -----------------------------------------------------------
-        // FASE 1: RECOLECCIÓN (Registrar nombres de Programa, Métodos y Rutinas primero)
-        // Esto permite llamar a una función que está definida más abajo en el código.
+        // FASE 1: RECOLECCIÓN (Registrar nombres de Programa, Métodos y Rutinas)
         // -----------------------------------------------------------
         for (int i = 0; i < tokens.size(); i++) {
             Token t = tokens.get(i);
@@ -361,7 +360,6 @@ public class Compilador extends javax.swing.JFrame {
                         String categoria = tipo.equals("PROGRAM") ? "Programa" : (tipo.equals("METODO") ? "Método" : "Rutina");
                         String valor = tipo.equals("PROGRAM") ? "Inicialización" : (tipo.equals("METODO") ? "Definición" : "Acción");
 
-                        // Registramos los bloques principales antes de analizar el cuerpo
                         agregarSimboloSiNoExiste(nombre, categoria, valor, next.getLine(), next.getColumn());
                     }
                 }
@@ -376,7 +374,7 @@ public class Compilador extends javax.swing.JFrame {
             String tipoToken = t.getLexicalComp();
             String lexema = t.getLexeme();
 
-            // CASO 1: DECLARACIONES DE VARIABLES (num, str, route, etc.)
+            // CASO 1: DECLARACIONES DE VARIABLES
             if (tipoToken.equals("NUM") || tipoToken.equals("BOOL") || tipoToken.equals("STR")
                     || tipoToken.equals("VAR") || tipoToken.equals("CONST") || tipoToken.equals("ROUTE")
                     || tipoToken.equals("SET")) {
@@ -388,56 +386,84 @@ public class Compilador extends javax.swing.JFrame {
                         String valorVar = "Indefinido";
                         String tipoDeclarado = tipoToken;
 
-                        // 1. VALIDACIÓN: ¿Se llama igual que el programa?
+                        // 1. VALIDACIÓN: Nombre de programa
                         if (nombreVar.equals(nombrePrograma)) {
                             errors.add(new TError(nextToken.getLine(), nextToken.getColumn(),
                                     "Error Semántico: El nombre de la variable '" + nombreVar + "' no puede ser igual al nombre del programa."));
                         }
 
-                        // 2. VALIDACIÓN: ¿Ya existe como VARIABLE? (Duplicada)
+                        // 2. VALIDACIÓN: Duplicados
                         Simbolo existente = buscarSimbolo(nombreVar);
-                        // Si ya existe y no es el registro del programa ni el de sí misma (método/rutina ya registrado en Fase 1)
                         if (existente != null && !existente.tipo.equals("Programa")) {
-                            // Si el símbolo existente NO es una variable, significa que hay un choque con un Método/Rutina
-                            // Si SÍ es una variable, es una duplicación de declaración.
                             errors.add(new TError(nextToken.getLine(), nextToken.getColumn(),
                                     "Error Semántico: El identificador '" + nombreVar + "' ya ha sido declarado anteriormente."));
                         }
 
-                        // Lógica de asignación '=' dentro de la declaración
+                        // 3. VALIDACIÓN DE ASIGNACIÓN EN DECLARACIÓN
                         if (i + 2 < tokens.size() && (tokens.get(i + 2).getLexeme().equals("=") || tokens.get(i + 2).getLexicalComp().equals("ASSIGN"))) {
                             if (i + 3 < tokens.size()) {
-                                Token tokenValor = tokens.get(i + 3);
+                                Token tokenValor = tokens.get(i + 3); // Aquí está el valor asignado (ej: 10, "texto", gps)
                                 String compValor = tokenValor.getLexicalComp();
+                                String lexemaValor = tokenValor.getLexeme();
+
                                 if (compValor.equals("SEMI")) {
                                     errors.add(new TError(tokenValor.getLine(), tokenValor.getColumn(),
                                             "Error Semántico: Falto agregar valor despues de '=' en '" + nombreVar + "'"));
                                 } else {
-                                    valorVar = tokenValor.getLexeme();
+                                    valorVar = lexemaValor;
+                                    
+                                    // === [INICIO DE LA CORRECCIÓN] ===
+                                    
+                                    // Verificamos si es una llamada a función (ej: gps() )
+                                    boolean esLlamadaFuncion = false;
+                                    String nombreFuncion = "";
+                                    
+                                    if (compValor.equals("ID") || compValor.equals("GPS")) { // GPS puede ser un token especial o ID
+                                        if (i + 4 < tokens.size() && tokens.get(i + 4).getLexicalComp().equals("LPAREN")) {
+                                            esLlamadaFuncion = true;
+                                            nombreFuncion = lexemaValor;
+                                        }
+                                    }
+
                                     // Validaciones de compatibilidad de tipos
                                     if (tipoDeclarado.equals("NUM")) {
+                                        // Error si le asignas String o Boolean
                                         if (compValor.equals("STRING") || compValor.equals("TRUE") || compValor.equals("FALSE")) {
                                             errors.add(new TError(tokenValor.getLine(), tokenValor.getColumn(),
                                                     "Error de Tipo: Asignación incompatible para la variable numérica '" + nombreVar + "'"));
                                         }
                                         validarDivisionPorCero(i, nombreVar);
-                                    } else if (tipoDeclarado.equals("STR") && !compValor.equals("STRING")) {
-                                        errors.add(new TError(tokenValor.getLine(), tokenValor.getColumn(),
-                                                "Error de Tipo: Se esperaba un STRING para la variable '" + nombreVar + "'"));
+                                    } 
+                                    else if (tipoDeclarado.equals("STR")) {
+                                        // REGLA CORREGIDA:
+                                        // Permitimos token STRING O llamada a gps()
+                                        boolean esTextoValido = compValor.equals("STRING");
+                                        
+                                        // Si es una llamada a 'gps' u otra función que retorna string, también es válido
+                                        if (!esTextoValido && esLlamadaFuncion) {
+                                            if (nombreFuncion.equalsIgnoreCase("gps")) {
+                                                esTextoValido = true; // gps() retorna string, es válido
+                                            }
+                                            // Aquí podrías agregar otras funciones si tuvieras (ej: leerNombre())
+                                        }
+
+                                        if (!esTextoValido) {
+                                            errors.add(new TError(tokenValor.getLine(), tokenValor.getColumn(),
+                                                    "Error de Tipo: Se esperaba un STRING para la variable '" + nombreVar + "'."));
+                                        }
                                     }
+                                    // === [FIN DE LA CORRECCIÓN] ===
                                 }
                             }
                         }
                         agregarSimboloSiNoExiste(nombreVar, "Variable (" + tipoDeclarado + ")", valorVar, nextToken.getLine(), nextToken.getColumn());
                     }
                 }
-            } // CASO 2: USO DE IDENTIFICADORES (Llamadas y Asignaciones simples)
+            } 
+            // CASO 2: USO DE IDENTIFICADORES (Llamadas y Asignaciones simples)
             else if (tipoToken.equals("ID")) {
-
-                // --- SUB-CASO A: ¿ES UNA LLAMADA A MÉTODO? (ID seguido de '(') ---
+                // (Mismo código que tenías para validar llamadas a métodos inexistentes)
                 if (i + 1 < tokens.size() && tokens.get(i + 1).getLexicalComp().equals("LPAREN")) {
-
-                    // Verificamos que no sea el momento de la definición (ej: metodo ID() )
                     boolean esDefinicion = false;
                     if (i > 0) {
                         String previo = tokens.get(i - 1).getLexicalComp();
@@ -445,17 +471,18 @@ public class Compilador extends javax.swing.JFrame {
                             esDefinicion = true;
                         }
                     }
-
                     if (!esDefinicion) {
                         Simbolo sym = buscarSimbolo(lexema);
-                        // VALIDACIÓN: ¿Existe en la tabla y es un tipo ejecutable?
                         if (sym == null || (!sym.tipo.equals("Método") && !sym.tipo.equals("Rutina"))) {
-                            errors.add(new TError(t.getLine(), t.getColumn(),
-                                    "Error Semántico: El método o rutina '" + lexema + "' no ha sido definido."));
+                             // Ojo: gps() es una función nativa, así que no estará en la tabla de símbolos del usuario.
+                             // Debemos ignorarla para no marcarla como "no definida".
+                             if (!lexema.equalsIgnoreCase("gps")) { 
+                                errors.add(new TError(t.getLine(), t.getColumn(),
+                                        "Error Semántico: El método o rutina '" + lexema + "' no ha sido definido."));
+                             }
                         }
                     }
-                } // --- SUB-CASO B: ¿ES UNA ASIGNACIÓN SIMPLE? (ID seguido de '=') ---
-                else if (i + 1 < tokens.size() && (tokens.get(i + 1).getLexeme().equals("=") || tokens.get(i + 1).getLexicalComp().equals("ASSIGN"))) {
+                } else if (i + 1 < tokens.size() && (tokens.get(i + 1).getLexeme().equals("=") || tokens.get(i + 1).getLexicalComp().equals("ASSIGN"))) {
                     if (buscarSimbolo(lexema) == null) {
                         errors.add(new TError(t.getLine(), t.getColumn(),
                                 "Error Semántico: La variable '" + lexema + "' no ha sido declarada."));

@@ -57,8 +57,8 @@ terminal SEMI, COMMA, LPAREN, RPAREN, LBRACE, RBRACE, LBRACK, RBRACK;
 non terminal ASTNode S;
 non terminal ASTNode contenido_programa, bloque_inicio, bloque_final;
 non terminal ASTNode definiciones_principales, definicion;
-non terminal ASTNode parametros_opc, parametros, parametro;
-non terminal ASTNode sentencias_bloque, sentencia_completa;
+non terminal ASTNode parametros, parametro;
+non terminal ASTNode sentencias_bloque, sentencia_completa, sentencias_bloque_x1;
 non terminal ASTNode declaracion, inicializacion_opc, tipo;
 non terminal ASTNode sentencia, asignacion, flujo, sino_opt, bloque_interno;
 non terminal ASTNode accion, valor_accion;
@@ -166,26 +166,85 @@ definiciones_principales ::=
       {: RESULT = new ASTNode("Definiciones"); :}
     ;
 
-/* --- DEFINICIONES --- */
+/* --- DEFINICIÓN DE MÉTODOS Y RUTINAS (CON VALIDACIONES) --- */
 definicion ::= 
-      METODO ID:id LPAREN parametros_opc:p RPAREN LBRACE sentencias_bloque:sb RBRACE
+    /* =======================================================
+       SECCIÓN A: MÉTODOS (Ya implementada anteriormente)
+       ======================================================= */
+    // 1. MÉTODO CORRECTO
+      METODO ID:id LPAREN parametros:p RPAREN LBRACE sentencias_bloque_x1:sb RBRACE
       {: 
          ASTNode n = new ASTNode("Metodo: " + id.getLexeme());
-         if (p != null && !p.children.isEmpty()) n.addChild(p);
-         if(sb != null) { for(ASTNode child : sb.children) n.addChild(child); }
+         n.addChild(p);
+         n.addChild(sb);
          RESULT = n; 
       :}
-    | RUTINA ID:id LBRACE sentencias_bloque:sb RBRACE
+
+    // 2. ERROR: Paréntesis Vacíos
+    | METODO ID:id LPAREN RPAREN LBRACE sentencias_bloque_x1:sb RBRACE
+      {: 
+         parser.errors.add(new TError(idleft, idright, "Error Sintáctico: El método '" + id.getLexeme() + "' debe tener al menos un parámetro (los paréntesis no pueden estar vacíos)."));
+         RESULT = null; 
+      :}
+
+    // 3. ERROR: Cuerpo Vacío
+    | METODO ID:id LPAREN parametros:p RPAREN LBRACE RBRACE
+      {: 
+         parser.errors.add(new TError(idleft, idright, "Error Sintáctico: El cuerpo del método '" + id.getLexeme() + "' no puede estar vacío. Debe contener al menos una instrucción."));
+         RESULT = null; 
+      :}
+
+    // 4. ERROR: Todo Vacío
+    | METODO ID:id LPAREN RPAREN LBRACE RBRACE
+      {: 
+         parser.errors.add(new TError(idleft, idright, "Error Sintáctico: Declaración de método inválida. Faltan parámetros y contenido."));
+         RESULT = null; 
+      :}
+
+    // 5. ERROR: Error en Parámetros
+    | METODO ID:id LPAREN error:e RPAREN LBRACE sentencias_bloque:sb RBRACE
+      {: 
+         parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Error en la declaración de los parámetros del método '" + id.getLexeme() + "'."));
+         RESULT = null; 
+      :}
+
+    /* =======================================================
+       SECCIÓN B: RUTINAS (NUEVO CÓDIGO AQUI)
+       ======================================================= */
+
+    // 6. RUTINA CORRECTA 
+    // Usa 'sentencias_bloque_x1' para obligar a tener contenido
+    | RUTINA ID:id LBRACE sentencias_bloque_x1:sb RBRACE
       {: 
          ASTNode n = new ASTNode("Rutina: " + id.getLexeme());
-         if(sb != null) { for(ASTNode child : sb.children) n.addChild(child); }
-         RESULT = n; 
+         n.addChild(sb);
+         RESULT = n;
+      :}
+
+    // 7. ERROR: Rutina Vacía (rutina id { })
+    | RUTINA ID:id LBRACE RBRACE
+      {: 
+         parser.errors.add(new TError(idleft, idright, "Error Sintáctico: El cuerpo de la rutina '" + id.getLexeme() + "' no puede estar vacío. Agregue instrucciones."));
+         RESULT = null; 
+      :}
+
+    // 8. ERROR: Falta ID (rutina { ... })
+    // Usamos 'rleft/rright' (coordenadas de RUTINA) porque no hay ID
+    | RUTINA:r LBRACE sentencias_bloque:sb RBRACE
+      {: 
+         parser.errors.add(new TError(rleft, rright, "Error Sintáctico: La rutina debe tener un nombre (ID) antes de abrir las llaves '{'."));
+         RESULT = null; 
+      :}
+      
+    // 9. ERROR: Nombre inválido (rutina 123 { ... })
+    | RUTINA error:e LBRACE sentencias_bloque:sb RBRACE
+      {: 
+         parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Nombre de rutina inválido. Se esperaba un identificador."));
+         RESULT = null; 
       :}
     ;
 
 /* --- PARÁMETROS --- */
-parametros_opc ::= parametros:p {: RESULT = p; :} | /* epsilon */ {: RESULT = new ASTNode("Params"); :};
-
 parametros ::= 
       parametros:list COMMA parametro:p
       {: list.addChild(p); RESULT = list; :}
@@ -202,6 +261,14 @@ sentencias_bloque ::=
     | /* epsilon */ {: RESULT = new ASTNode("Bloque"); :}
     ;
 
+/* --- BLOQUE OBLIGATORIO (1 o más sentencias) --- */
+sentencias_bloque_x1 ::=
+      sentencias_bloque_x1:list sentencia_completa:s 
+      {: if(s!=null) list.addChild(s); RESULT = list; :}
+    | sentencia_completa:s 
+      {: ASTNode n = new ASTNode("Bloque"); if(s!=null) n.addChild(s); RESULT = n; :}
+    ;
+
 sentencia_completa ::= 
       declaracion:d {: RESULT = d; :}
     | sentencia:s   {: RESULT = s; :}
@@ -209,9 +276,9 @@ sentencia_completa ::=
     | error SEMI    {: RESULT = null; :} 
     ;
 
-/* --- DECLARACIONES --- */
+/* --- DECLARACIONES CORREGIDO (CON VALIDACIÓN DE ARRAYS Y VARIABLES) --- */
 declaracion ::= 
-      // Declaración normal: num x = 10;
+      // 1. Declaración normal: num x = 10;
       tipo:t ID:id inicializacion_opc:init SEMI
       {: 
          ASTNode n = new ASTNode("Decl: " + id.getLexeme());
@@ -219,21 +286,65 @@ declaracion ::=
          if(init != null) n.addChild(init); 
          RESULT = n; 
       :}
+
+    // 2. Declaración de Array Correcta: num x[5];
     | tipo:t ID:id LBRACK NUMBER:n RBRACK SEMI
       {: 
          ASTNode node = new ASTNode("ArrayDecl: " + id.getLexeme()); 
          node.addChild(t); 
-         // Ahora sí, 'n' se refiere al token NUMBER
+         // 'n' se refiere al token NUMBER
          node.addChild(new ASTNode("Size: " + n.getLexeme()));
          RESULT = node; 
       :}
+
+    /* ==================== ERRORES DE ID FALTANTE ==================== */
+
+    // 3. ERROR: Falta ID en Variable Simple -> num = 10;
     | tipo:t ASSIGN expresion:e SEMI
       {: 
-         // Reportamos el error usando las coordenadas del tipo 't'
          parser.errors.add(new TError(tleft, tright, 
-            "Error Sintáctico: Falta el nombre de la variable (ID) en la declaración"));
-         RESULT = null; // Retornamos null para que el árbol ignore esta línea errónea
+            "Error Sintáctico: Falta el nombre de la variable (ID) antes del '='."));
+         RESULT = null; 
       :}
+
+    // 4. ERROR: Falta ID en Array -> num [5];
+    | tipo:t LBRACK NUMBER:n RBRACK SEMI
+      {: 
+         parser.errors.add(new TError(tleft, tright, 
+            "Error Sintáctico: Falta el nombre del array (ID) antes de los corchetes."));
+         RESULT = null;
+      :}
+
+    /* ==================== ERRORES DE ESTRUCTURA DE ARRAY ==================== */
+
+    // 5. ERROR: Corchetes Vacíos -> num lista[];
+    | tipo:t ID:id LBRACK RBRACK SEMI
+      {: 
+         parser.errors.add(new TError(idleft, idright, 
+            "Error Sintáctico: El tamaño del array '" + id.getLexeme() + "' no puede estar vacío. Debe especificar un tamaño numérico."));
+         RESULT = null; 
+      :}
+
+    // 6. ERROR: Falta Corchete de Cierre -> num lista[5 ;
+    | tipo:t ID:id LBRACK NUMBER:n SEMI
+      {: 
+         parser.errors.add(new TError(idleft, idright, 
+            "Error Sintáctico: Falta corchete de cierre ']' en la declaración del array '" + id.getLexeme() + "'.")); 
+         RESULT = null; 
+      :}
+      
+    // 7. ERROR: Falta Corchete de Apertura -> num lista 5];
+    // Usamos 'error' para atrapar lo que sea que esté entre el ID y el cierre
+    | tipo:t ID:id error:e RBRACK SEMI
+      {: 
+         parser.errors.add(new TError(idleft, idright, 
+            "Error Sintáctico: Falta corchete de apertura '[' en la declaración del array '" + id.getLexeme() + "'.")); 
+         RESULT = null; 
+      :}
+
+    /* ==================== OTROS CASOS EXISTENTES ==================== */
+
+    // 8. Error específico de Mapa
     | tipo:t ID:id MAP LBRACK ruta:r RBRACK SEMI
       {: 
          parser.errors.add(new TError(id.getLine(), id.getColumn(), 
@@ -241,6 +352,7 @@ declaracion ::=
          RESULT = null; 
       :}
       
+    // 9. Constantes y Sets
     | CONST ID:id ASSIGN expresion:e SEMI
       {: ASTNode n = new ASTNode("Const: " + id.getLexeme()); n.addChild(e); RESULT = n; :}
     | SET ID:id ASSIGN expresion:e SEMI
@@ -282,7 +394,7 @@ asignacion ::=
       {: ASTNode n = new ASTNode("ArraySet: " + id.getLexeme()); n.addChild(idx); n.addChild(val); RESULT = n; :}
     ;
 
-/* --- CONTROL DE FLUJO DEFINITIVO (CON DETECCIÓN DE EXPRESIONES INCOMPLETAS) --- */
+/* --- CONTROL DE FLUJO DEFINITIVO (CON TODAS LAS VALIDACIONES) --- */
 flujo ::= 
     /* ==================== 1. CICLO MIENTRAS ==================== */
       
@@ -294,19 +406,16 @@ flujo ::=
     | MIENTRAS LPAREN RPAREN bloque_interno:b
       {: parser.errors.add(new TError(bleft, bright, "Error Sintáctico: La condición del 'mientras' no puede estar vacía ().")); RESULT = null; :}
 
-    // F. NUEVO: Expresión Incompleta/Mal Formada 'mientras ( x > )'
-    // Esta regla atrapa cualquier error que ocurra DENTRO de los paréntesis
+    // F. Expresión Incompleta
     | MIENTRAS LPAREN error:e RPAREN bloque_interno:b
       {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: La expresión del 'mientras' está incompleta o es inválida.")); RESULT = null; :}
 
-    // C. TRAMPA: Falta paréntesis de cierre ')' -> mientras (expr { 
+    // C. TRAMPA: Falta paréntesis de cierre
     | MIENTRAS LPAREN expresion:e bloque_interno:b
-      {: 
-         parser.errors.add(new TError(bleft, bright, "Error Sintáctico: Falta paréntesis de cierre ')' en el ciclo 'mientras'.")); 
-         ASTNode n = new ASTNode("Mientras(Error)"); n.addChild(e); n.addChild(b); RESULT = n; 
-      :}
+      {: parser.errors.add(new TError(bleft, bright, "Error Sintáctico: Falta paréntesis de cierre ')' en el ciclo 'mientras'.")); 
+         ASTNode n = new ASTNode("Mientras(Error)"); n.addChild(e); n.addChild(b); RESULT = n; :}
 
-    // D. Error: Falta paréntesis de apertura 'mientras expr )'
+    // D. Error: Falta paréntesis de apertura
     | MIENTRAS error:e expresion:expr RPAREN bloque_interno:b
       {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Falta paréntesis de apertura '(' en el ciclo 'mientras'.")); RESULT = null; :}
 
@@ -317,60 +426,75 @@ flujo ::=
     | CUANDO LPAREN expresion:e RPAREN bloque_interno:b sino_opt:s
       {: ASTNode n = new ASTNode("Cuando"); n.addChild(e); n.addChild(b); if(s!=null) n.addChild(s); RESULT = n; :}
 
-    // B. Error: Condición Vacía 'cuando()'
+    // B. Error: Condición Vacía
     | CUANDO LPAREN RPAREN bloque_interno:b sino_opt:s
       {: parser.errors.add(new TError(bleft, bright, "Error Sintáctico: La condición del 'cuando' no puede estar vacía ().")); RESULT = null; :}
 
-    // F. NUEVO: Expresión Incompleta/Mal Formada 'cuando ( x == )'
+    // F. Expresión Incompleta
     | CUANDO LPAREN error:e RPAREN bloque_interno:b sino_opt:s
       {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: La expresión del 'cuando' está incompleta o es inválida.")); RESULT = null; :}
 
-    // C. TRAMPA: Falta paréntesis de cierre ')' -> cuando (expr {
+    // C. TRAMPA: Falta paréntesis de cierre
     | CUANDO LPAREN expresion:e bloque_interno:b sino_opt:s
-      {: 
-         parser.errors.add(new TError(bleft, bright, "Error Sintáctico: Falta paréntesis de cierre ')' en 'cuando' antes del bloque.")); 
-         ASTNode n = new ASTNode("Cuando(Error)"); n.addChild(e); n.addChild(b); if(s!=null) n.addChild(s); RESULT = n; 
-      :}
+      {: parser.errors.add(new TError(bleft, bright, "Error Sintáctico: Falta paréntesis de cierre ')' en 'cuando' antes del bloque.")); 
+         ASTNode n = new ASTNode("Cuando(Error)"); n.addChild(e); n.addChild(b); if(s!=null) n.addChild(s); RESULT = n; :}
 
-    // D. Error: Falta paréntesis de apertura 'cuando expr )'
+    // D. Error: Falta paréntesis de apertura
     | CUANDO error:e expresion:expr RPAREN bloque_interno:b sino_opt:s
       {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Falta paréntesis de apertura '(' en 'cuando'.")); RESULT = null; :}
 
 
-    /* ==================== 3. CICLO LOOP ==================== */
+    /* ==================== 3. CICLO LOOP (MODIFICADO) ==================== */
     
-    // A. Sintaxis Correcta (Con condición) -> loop(x < 5)
-    | LOOP LPAREN expresion:e RPAREN bloque_interno:b
-      {: ASTNode n = new ASTNode("Loop"); n.addChild(e); n.addChild(b); RESULT = n; :}
+    // A. Sintaxis Correcta (Con condición y CONTENIDO OBLIGATORIO)
+    | LOOP LPAREN expresion:e RPAREN LBRACE sentencias_bloque_x1:sb RBRACE
+      {: ASTNode n = new ASTNode("Loop"); n.addChild(e); n.addChild(sb); RESULT = n; :}
+
+    // NUEVO: Loop Condicional Vacío -> loop (expr) { }
+    | LOOP LPAREN expresion:e RPAREN LBRACE RBRACE
+      {: 
+         parser.errors.add(new TError(eleft, eright, "Error Sintáctico: El cuerpo del 'loop' no puede estar vacío. Ingrese instrucciones dentro de las llaves.")); 
+         RESULT = null; 
+      :}
 
     // B. Error: Condición Vacía -> loop()
     | LOOP LPAREN RPAREN bloque_interno:b
       {: parser.errors.add(new TError(bleft, bright, "Error Sintáctico: La condición del 'loop' no puede estar vacía.")); RESULT = null; :}
 
-    // F. NUEVO: Expresión Incompleta/Mal Formada 'loop ( < 10 )'
+    // F. Expresión Incompleta -> loop ( < 10 )
     | LOOP LPAREN error:e RPAREN bloque_interno:b
       {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: La expresión del 'loop' está incompleta o es inválida.")); RESULT = null; :}
 
-    // C. TRAMPA: Falta paréntesis de cierre ')' -> loop (expr {
+    // C. TRAMPA: Falta paréntesis de cierre -> loop (expr {
     | LOOP LPAREN expresion:e bloque_interno:b
+      {: parser.errors.add(new TError(bleft, bright, "Error Sintáctico: Falta paréntesis de cierre ')' en el ciclo 'loop'.")); 
+         ASTNode n = new ASTNode("Loop(Error)"); n.addChild(e); n.addChild(b); RESULT = n; :}
+
+    // E. NUEVO: Falta paréntesis de apertura -> loop expr )
+    // Esta regla atrapa: loop x > 10 ) { ... }
+    | LOOP error:e RPAREN bloque_interno:b
       {: 
-         parser.errors.add(new TError(bleft, bright, "Error Sintáctico: Falta paréntesis de cierre ')' en el ciclo 'loop'.")); 
-         ASTNode n = new ASTNode("Loop(Error)"); n.addChild(e); n.addChild(b); RESULT = n; 
+         parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Falta paréntesis de apertura '(' en el ciclo 'loop'.")); 
+         RESULT = null; 
       :}
     
-    // D. Sintaxis Correcta (Infinito/Simple) -> loop { ... }
-    | LOOP bloque_interno:b
-      {: ASTNode n = new ASTNode("LoopInfinito"); n.addChild(b); RESULT = n; :}
+    // D. Sintaxis Correcta Loop Infinito (CON CONTENIDO OBLIGATORIO)
+    | LOOP LBRACE sentencias_bloque_x1:sb RBRACE
+      {: ASTNode n = new ASTNode("LoopInfinito"); n.addChild(sb); RESULT = n; :}
+
+    // NUEVO: Loop Infinito Vacío -> loop { }
+    | LOOP LBRACE:lb RBRACE
+      {: 
+         parser.errors.add(new TError(lbleft, lbright, "Error Sintáctico: El cuerpo del 'loop' infinito no puede estar vacío. Ingrese instrucciones.")); 
+         RESULT = null; 
+      :}
     ;
 
 /* --- SINO OPCIONAL --- */
 sino_opt ::= 
       SINO bloque_interno:b 
       {: ASTNode n = new ASTNode("Sino"); n.addChild(b); RESULT = n; :}
-    
     | /* epsilon */ {: RESULT = null; :}
-
-    // Detectar: sino (condicion) o sino (basura) -> Error
     | SINO LPAREN error:e
       {: 
          parser.errors.add(new TError(eleft, eright, "Error Sintáctico: 'sino' NO lleva condición. Use 'sino cuando' o 'sino {'.")); 
@@ -423,48 +547,92 @@ e_s ::=
       :}
     ;
 
-/* --- ACCIONES CORREGIDO --- */
+/* --- ACCIONES COMPLETO (CON TODAS LAS VALIDACIONES) --- */
 accion ::= 
-      // Movimientos con valor opcional (move(10) o move;)
-      MOVE valor_accion:v SEMI {: ASTNode n = new ASTNode("Move");
-         if(v!=null) n.addChild(v); RESULT = n; :}
-         
-    | TURN valor_accion:v SEMI {: ASTNode n = new ASTNode("Turn");
-         if(v!=null) n.addChild(v); RESULT = n; :}
-         
-    // Acciones simples sin parámetros
-    | STOP SEMI {: RESULT = new ASTNode("Stop"); :}
-    | ACCEL SEMI {: RESULT = new ASTNode("Action:Accel"); :}
-    | DECEL SEMI {: RESULT = new ASTNode("Action:Decel"); :}
-    | REVERSE SEMI {: RESULT = new ASTNode("Action:Reverse"); :}
-    | BRAKE SEMI {: RESULT = new ASTNode("Action:Brake"); :}
+    /* ==================== 1. MOVIMIENTOS (HÍBRIDOS) ==================== */
+      // move(10); o move;
+      MOVE valor_accion:v SEMI {: ASTNode n = new ASTNode("Move"); if(v!=null) n.addChild(v); RESULT = n; :}
+    | TURN valor_accion:v SEMI {: ASTNode n = new ASTNode("Turn"); if(v!=null) n.addChild(v); RESULT = n; :}
 
-    // WAIT: Esperar
+    /* ==================== 2. ACCIONES SIMPLES (PROHIBIDO USAR PARÉNTESIS) ==================== */
+    
+    // --- STOP ---
+    | STOP SEMI {: RESULT = new ASTNode("Stop"); :}
+    // Error: stop()
+    | STOP:s LPAREN RPAREN SEMI 
+      {: parser.errors.add(new TError(sleft, sright, "Error Sintáctico: La instrucción 'stop' es simple. No lleva paréntesis '()'. Use solo 'stop;'.")); RESULT = null; :}
+    // Error: stop(algo)
+    | STOP:s LPAREN error RPAREN SEMI 
+      {: parser.errors.add(new TError(sleft, sright, "Error Sintáctico: 'stop' no acepta parámetros ni paréntesis.")); RESULT = null; :}
+
+    // --- ACCEL ---
+    | ACCEL SEMI {: RESULT = new ASTNode("Action:Accel"); :}
+    // Error: accel()
+    | ACCEL:a LPAREN RPAREN SEMI 
+      {: parser.errors.add(new TError(aleft, aright, "Error Sintáctico: La instrucción 'accel' es simple. No lleva paréntesis '()'. Use solo 'accel;'.")); RESULT = null; :}
+    // Error: accel(algo)
+    | ACCEL:a LPAREN error RPAREN SEMI 
+      {: parser.errors.add(new TError(aleft, aright, "Error Sintáctico: 'accel' no acepta parámetros ni paréntesis.")); RESULT = null; :}
+
+    // --- DECEL ---
+    | DECEL SEMI {: RESULT = new ASTNode("Action:Decel"); :}
+    // Error: decel()
+    | DECEL:d LPAREN RPAREN SEMI 
+      {: parser.errors.add(new TError(dleft, dright, "Error Sintáctico: La instrucción 'decel' es simple. No lleva paréntesis '()'. Use solo 'decel;'.")); RESULT = null; :}
+    // Error: decel(algo)
+    | DECEL:d LPAREN error RPAREN SEMI 
+      {: parser.errors.add(new TError(dleft, dright, "Error Sintáctico: 'decel' no acepta parámetros ni paréntesis.")); RESULT = null; :}
+
+    // --- REVERSE ---
+    | REVERSE SEMI {: RESULT = new ASTNode("Action:Reverse"); :}
+    // Error: reverse()
+    | REVERSE:r LPAREN RPAREN SEMI 
+      {: parser.errors.add(new TError(rleft, rright, "Error Sintáctico: La instrucción 'reverse' es simple. No lleva paréntesis '()'. Use solo 'reverse;'.")); RESULT = null; :}
+    // Error: reverse(algo)
+    | REVERSE:r LPAREN error RPAREN SEMI 
+      {: parser.errors.add(new TError(rleft, rright, "Error Sintáctico: 'reverse' no acepta parámetros ni paréntesis.")); RESULT = null; :}
+
+    // --- BRAKE ---
+    | BRAKE SEMI {: RESULT = new ASTNode("Action:Brake"); :}
+    // Error: brake()
+    | BRAKE:b LPAREN RPAREN SEMI 
+      {: parser.errors.add(new TError(bleft, bright, "Error Sintáctico: La instrucción 'brake' es simple. No lleva paréntesis '()'. Use solo 'brake;'.")); RESULT = null; :}
+    // Error: brake(algo)
+    | BRAKE:b LPAREN error RPAREN SEMI 
+      {: parser.errors.add(new TError(bleft, bright, "Error Sintáctico: 'brake' no acepta parámetros ni paréntesis.")); RESULT = null; :}
+
+    /* ==================== 3. WAIT (OBLIGATORIO USAR PARÉNTESIS) ==================== */
+
+    // A. Wait Correcto
     | WAIT LPAREN expresion:e RPAREN SEMI {: ASTNode n = new ASTNode("Wait"); n.addChild(e); RESULT = n; :}
     
-    // Error Wait Vacío: wait();
-    // AQUI ESTABA EL ERROR: Agregamos ':w' para poder usar wleft/wright
+    // B. Error: Wait Vacío -> wait();
     | WAIT:w LPAREN RPAREN SEMI 
-      {: parser.errors.add(new TError(wleft, wright, "Error Sintáctico: 'wait' requiere un valor numérico (segundos).")); RESULT = null; :}
+      {: parser.errors.add(new TError(wleft, wright, "Error Sintáctico: 'wait' requiere un valor numérico (segundos) dentro de los paréntesis.")); RESULT = null; :}
 
-    // BROADCAST: Enviar mensaje
+    // C. Error: Falta cierre -> wait( 10 ;
+    | WAIT LPAREN expresion:e SEMI
+      {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Falta paréntesis de cierre ')' en la instrucción 'wait'.")); RESULT = null; :}
+
+    // D. Error: Falta apertura -> wait 10 );
+    | WAIT error:e RPAREN SEMI
+      {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Falta paréntesis de apertura '(' en la instrucción 'wait'.")); RESULT = null; :}
+
+    /* ==================== 4. COMUNICACIÓN ==================== */
+
+    // BROADCAST
     | BROADCAST LPAREN expresion:e RPAREN SEMI {: ASTNode n = new ASTNode("Broadcast"); n.addChild(e); RESULT = n; :}
 
-    // Error Broadcast Vacío: broadcast();
-    // AQUI TAMBIEN: Agregamos ':b' para poder usar bleft/bright
+    // Error Broadcast Vacío
     | BROADCAST:b LPAREN RPAREN SEMI 
       {: parser.errors.add(new TError(bleft, bright, "Error Sintáctico: 'broadcast' requiere un mensaje para enviar.")); RESULT = null; :}
       
     // Error Broadcast Mal Formado
     | BROADCAST LPAREN error:e RPAREN SEMI
-      {: 
-         parser.errors.add(new TError(eleft, eright, "Error en broadcast: Verifique que las comillas del mensaje estén cerradas"));
-         RESULT = null;
-      :}
+      {: parser.errors.add(new TError(eleft, eright, "Error en broadcast: Verifique que las comillas del mensaje estén cerradas")); RESULT = null; :}
       
-    // RECEIVE: Recibir mensaje en variable
-    | RECEIVE LPAREN ID:id RPAREN SEMI {: ASTNode n = new ASTNode("Receive -> " + id.getLexeme());
-         RESULT = n; :}
+    // RECEIVE
+    | RECEIVE LPAREN ID:id RPAREN SEMI {: ASTNode n = new ASTNode("Receive -> " + id.getLexeme()); RESULT = n; :}
     ;
 
 /* --- VALOR ACCIÓN --- */
@@ -572,7 +740,35 @@ bloque_mapa ::=
     | GOTO ID:id SEMI {: ASTNode n = new ASTNode("Goto: " + id.getLexeme()); RESULT = n; :}
     ;
 
-valor_sensor ::= SENSOR LBRACK tipo_sensor:t RBRACK {: ASTNode n = new ASTNode("SensorRead"); n.addChild(t); RESULT = n; :};
+/* --- LECTURA DE SENSORES (VALIDADA) --- */
+valor_sensor ::= 
+      // 1. Correcto: sensor[distance]
+      SENSOR LBRACK tipo_sensor:t RBRACK 
+      {: ASTNode n = new ASTNode("SensorRead"); n.addChild(t); RESULT = n; :}
+
+    // 2. Error: Sensor Vacío -> sensor[]
+    | SENSOR:s LBRACK RBRACK
+      {: 
+         parser.errors.add(new TError(sleft, sright, "Error Sintáctico: La lectura del sensor '[]' no puede estar vacía. Debe especificar un tipo [GPS, SPEED, DISTANCE, OBSTACLE].")); 
+         RESULT = null; 
+      :}
+
+    // 3. Error: Contenido Inválido -> sensor[ 123 ] o sensor[ "hola" ]
+    // Atrapa cualquier cosa que no sea un tipo de sensor válido
+    | SENSOR:s LBRACK error:e RBRACK
+      {: 
+         parser.errors.add(new TError(sleft, sright, "Error Sintáctico: Tipo de sensor inválido. Use [GPS, SPEED, DISTANCE, OBSTACLE].")); 
+         RESULT = null; 
+      :}
+      
+    // 4. Error: Falta cierre -> sensor[ GPS ;
+    // Detectamos si falta el ']' antes de terminar la instrucción
+    | SENSOR:s LBRACK tipo_sensor:t SEMI
+      {: 
+         parser.errors.add(new TError(sleft, sright, "Error Sintáctico: Falta corchete de cierre ']' en la lectura del sensor.")); 
+         RESULT = null; 
+      :}
+    ;
 
 tipo_sensor ::= 
       GPS {: RESULT = new ASTNode("Sensor:GPS"); :}
