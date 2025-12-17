@@ -282,7 +282,7 @@ asignacion ::=
       {: ASTNode n = new ASTNode("ArraySet: " + id.getLexeme()); n.addChild(idx); n.addChild(val); RESULT = n; :}
     ;
 
-/* --- CONTROL DE FLUJO --- */
+/* --- CONTROL DE FLUJO DEFINITIVO (CON DETECCIÓN DE EXPRESIONES INCOMPLETAS) --- */
 flujo ::= 
     /* ==================== 1. CICLO MIENTRAS ==================== */
       
@@ -294,13 +294,21 @@ flujo ::=
     | MIENTRAS LPAREN RPAREN bloque_interno:b
       {: parser.errors.add(new TError(bleft, bright, "Error Sintáctico: La condición del 'mientras' no puede estar vacía ().")); RESULT = null; :}
 
-    // C. Error: Falta paréntesis de apertura 'mientras x < 10)'
+    // F. NUEVO: Expresión Incompleta/Mal Formada 'mientras ( x > )'
+    // Esta regla atrapa cualquier error que ocurra DENTRO de los paréntesis
+    | MIENTRAS LPAREN error:e RPAREN bloque_interno:b
+      {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: La expresión del 'mientras' está incompleta o es inválida.")); RESULT = null; :}
+
+    // C. TRAMPA: Falta paréntesis de cierre ')' -> mientras (expr { 
+    | MIENTRAS LPAREN expresion:e bloque_interno:b
+      {: 
+         parser.errors.add(new TError(bleft, bright, "Error Sintáctico: Falta paréntesis de cierre ')' en el ciclo 'mientras'.")); 
+         ASTNode n = new ASTNode("Mientras(Error)"); n.addChild(e); n.addChild(b); RESULT = n; 
+      :}
+
+    // D. Error: Falta paréntesis de apertura 'mientras expr )'
     | MIENTRAS error:e expresion:expr RPAREN bloque_interno:b
       {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Falta paréntesis de apertura '(' en el ciclo 'mientras'.")); RESULT = null; :}
-
-    // D. Error: Falta paréntesis de cierre 'mientras (x < 10'
-    | MIENTRAS LPAREN expresion:expr error:e bloque_interno:b
-      {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Falta paréntesis de cierre ')' en el ciclo 'mientras'.")); RESULT = null; :}
 
 
     /* ==================== 2. CONDICIONAL CUANDO ==================== */
@@ -313,13 +321,20 @@ flujo ::=
     | CUANDO LPAREN RPAREN bloque_interno:b sino_opt:s
       {: parser.errors.add(new TError(bleft, bright, "Error Sintáctico: La condición del 'cuando' no puede estar vacía ().")); RESULT = null; :}
 
-    // C. Error: Falta paréntesis de apertura 'cuando x == 1)'
+    // F. NUEVO: Expresión Incompleta/Mal Formada 'cuando ( x == )'
+    | CUANDO LPAREN error:e RPAREN bloque_interno:b sino_opt:s
+      {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: La expresión del 'cuando' está incompleta o es inválida.")); RESULT = null; :}
+
+    // C. TRAMPA: Falta paréntesis de cierre ')' -> cuando (expr {
+    | CUANDO LPAREN expresion:e bloque_interno:b sino_opt:s
+      {: 
+         parser.errors.add(new TError(bleft, bright, "Error Sintáctico: Falta paréntesis de cierre ')' en 'cuando' antes del bloque.")); 
+         ASTNode n = new ASTNode("Cuando(Error)"); n.addChild(e); n.addChild(b); if(s!=null) n.addChild(s); RESULT = n; 
+      :}
+
+    // D. Error: Falta paréntesis de apertura 'cuando expr )'
     | CUANDO error:e expresion:expr RPAREN bloque_interno:b sino_opt:s
       {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Falta paréntesis de apertura '(' en 'cuando'.")); RESULT = null; :}
-
-    // D. Error: Falta paréntesis de cierre 'cuando (x == 1'
-    | CUANDO LPAREN expresion:expr error:e bloque_interno:b sino_opt:s
-      {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Falta paréntesis de cierre ')' en 'cuando'.")); RESULT = null; :}
 
 
     /* ==================== 3. CICLO LOOP ==================== */
@@ -332,17 +347,36 @@ flujo ::=
     | LOOP LPAREN RPAREN bloque_interno:b
       {: parser.errors.add(new TError(bleft, bright, "Error Sintáctico: La condición del 'loop' no puede estar vacía.")); RESULT = null; :}
 
-    // C. Error: Falta paréntesis de cierre -> loop (x < 5
-    // NOTA: En LOOP no validamos "falta de apertura" igual que en 'mientras' porque "loop { }" es válido sin paréntesis.
-    | LOOP LPAREN expresion:e error:err bloque_interno:b
-      {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: Falta paréntesis de cierre ')' en el ciclo 'loop'.")); RESULT = null; :}
+    // F. NUEVO: Expresión Incompleta/Mal Formada 'loop ( < 10 )'
+    | LOOP LPAREN error:e RPAREN bloque_interno:b
+      {: parser.errors.add(new TError(eleft, eright, "Error Sintáctico: La expresión del 'loop' está incompleta o es inválida.")); RESULT = null; :}
+
+    // C. TRAMPA: Falta paréntesis de cierre ')' -> loop (expr {
+    | LOOP LPAREN expresion:e bloque_interno:b
+      {: 
+         parser.errors.add(new TError(bleft, bright, "Error Sintáctico: Falta paréntesis de cierre ')' en el ciclo 'loop'.")); 
+         ASTNode n = new ASTNode("Loop(Error)"); n.addChild(e); n.addChild(b); RESULT = n; 
+      :}
     
     // D. Sintaxis Correcta (Infinito/Simple) -> loop { ... }
     | LOOP bloque_interno:b
       {: ASTNode n = new ASTNode("LoopInfinito"); n.addChild(b); RESULT = n; :}
     ;
 
-sino_opt ::= SINO bloque_interno:b {: RESULT = b; :} | /* epsilon */ {: RESULT = null; :};
+/* --- SINO OPCIONAL --- */
+sino_opt ::= 
+      SINO bloque_interno:b 
+      {: ASTNode n = new ASTNode("Sino"); n.addChild(b); RESULT = n; :}
+    
+    | /* epsilon */ {: RESULT = null; :}
+
+    // Detectar: sino (condicion) o sino (basura) -> Error
+    | SINO LPAREN error:e
+      {: 
+         parser.errors.add(new TError(eleft, eright, "Error Sintáctico: 'sino' NO lleva condición. Use 'sino cuando' o 'sino {'.")); 
+         RESULT = null; 
+      :}
+    ;
 
 /* --- BLOQUE INTERNO SIN CONFLICTOS --- */
 bloque_interno ::= 
@@ -364,37 +398,91 @@ argumentos ::=
       {: ASTNode n = new ASTNode("Args"); n.addChild(e); RESULT = n; :}
     ;
 
+/* --- ENTRADA / SALIDA --- */
 e_s ::= 
+      // 1. Caso Correcto
       SALIDA LPAREN expresion:e RPAREN SEMI 
       {: ASTNode n = new ASTNode("Salida"); n.addChild(e); RESULT = n; :}
-    | SALIDA LPAREN error RPAREN SEMI
+      
+    // 2. Error: Paréntesis vacíos (Ahora con ubicación real)
+    // Agregamos ':s' a SALIDA para capturar su posición
+    | SALIDA:s LPAREN RPAREN SEMI
       {: 
-         // Esta regla se activa si el contenido de los paréntesis está mal
-         parser.errors.add(new TError(0, 0, "Error en salida: Verifique comillas o argumentos"));
+         // Usamos sleft (línea) y sright (columna) en vez de 0,0
+         parser.errors.add(new TError(sleft, sright, 
+             "Error Sintáctico: La instrucción 'salida' requiere un mensaje o valor dentro de los paréntesis."));
+         RESULT = null;
+      :}
+      
+    // 3. Error: Contenido mal formado
+    | SALIDA:s LPAREN error RPAREN SEMI
+      {: 
+         parser.errors.add(new TError(sleft, sright, 
+             "Error en salida: Verifique comillas o argumentos"));
          RESULT = null;
       :}
     ;
 
-/* --- ACCIONES --- */
+/* --- ACCIONES CORREGIDO --- */
 accion ::= 
-      MOVE valor_accion:v SEMI {: ASTNode n = new ASTNode("Move"); if(v!=null) n.addChild(v); RESULT = n; :}
-    | TURN valor_accion:v SEMI {: ASTNode n = new ASTNode("Turn"); if(v!=null) n.addChild(v); RESULT = n; :}
+      // Movimientos con valor opcional (move(10) o move;)
+      MOVE valor_accion:v SEMI {: ASTNode n = new ASTNode("Move");
+         if(v!=null) n.addChild(v); RESULT = n; :}
+         
+    | TURN valor_accion:v SEMI {: ASTNode n = new ASTNode("Turn");
+         if(v!=null) n.addChild(v); RESULT = n; :}
+         
+    // Acciones simples sin parámetros
     | STOP SEMI {: RESULT = new ASTNode("Stop"); :}
     | ACCEL SEMI {: RESULT = new ASTNode("Action:Accel"); :}
     | DECEL SEMI {: RESULT = new ASTNode("Action:Decel"); :}
     | REVERSE SEMI {: RESULT = new ASTNode("Action:Reverse"); :}
     | BRAKE SEMI {: RESULT = new ASTNode("Action:Brake"); :}
+
+    // WAIT: Esperar
     | WAIT LPAREN expresion:e RPAREN SEMI {: ASTNode n = new ASTNode("Wait"); n.addChild(e); RESULT = n; :}
+    
+    // Error Wait Vacío: wait();
+    // AQUI ESTABA EL ERROR: Agregamos ':w' para poder usar wleft/wright
+    | WAIT:w LPAREN RPAREN SEMI 
+      {: parser.errors.add(new TError(wleft, wright, "Error Sintáctico: 'wait' requiere un valor numérico (segundos).")); RESULT = null; :}
+
+    // BROADCAST: Enviar mensaje
     | BROADCAST LPAREN expresion:e RPAREN SEMI {: ASTNode n = new ASTNode("Broadcast"); n.addChild(e); RESULT = n; :}
+
+    // Error Broadcast Vacío: broadcast();
+    // AQUI TAMBIEN: Agregamos ':b' para poder usar bleft/bright
+    | BROADCAST:b LPAREN RPAREN SEMI 
+      {: parser.errors.add(new TError(bleft, bright, "Error Sintáctico: 'broadcast' requiere un mensaje para enviar.")); RESULT = null; :}
+      
+    // Error Broadcast Mal Formado
     | BROADCAST LPAREN error:e RPAREN SEMI
       {: 
          parser.errors.add(new TError(eleft, eright, "Error en broadcast: Verifique que las comillas del mensaje estén cerradas"));
          RESULT = null;
       :}
-    | RECEIVE LPAREN ID:id RPAREN SEMI {: ASTNode n = new ASTNode("Receive -> " + id.getLexeme()); RESULT = n; :}
+      
+    // RECEIVE: Recibir mensaje en variable
+    | RECEIVE LPAREN ID:id RPAREN SEMI {: ASTNode n = new ASTNode("Receive -> " + id.getLexeme());
+         RESULT = n; :}
     ;
 
-valor_accion ::= LPAREN expresion:e RPAREN {: RESULT = e; :} | /* epsilon */ {: RESULT = null; :};
+/* --- VALOR ACCIÓN --- */
+valor_accion ::= 
+      // 1. Caso Normal: (expresion)
+      LPAREN expresion:e RPAREN {: RESULT = e; :} 
+
+    // 2. Caso Vacío: move; (sin paréntesis)
+    | /* epsilon */ {: RESULT = null; :}
+
+    // 3. ERROR: Paréntesis vacíos -> move() o turn()
+    | LPAREN:lp RPAREN 
+      {: 
+         parser.errors.add(new TError(lpleft, lpright, 
+             "Error Sintáctico: La instrucción de movimiento requiere un valor (distancia/ángulo) dentro de los paréntesis."));
+         RESULT = null; 
+      :}
+    ;
 
 /* --- EXPRESIONES --- */
 expresion ::= 
