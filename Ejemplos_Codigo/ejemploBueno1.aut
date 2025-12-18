@@ -3,7 +3,7 @@ program AutoInteligente {
     // 1. DEFINICIONES (Ahora van ANTES de 'inicio')
     
     // Método con parámetros y retorno
-    metodo CalcularFrenado(num velocidad, num friccion) {
+    metodo CalcularFrenado (num velocidad, num friccion) {
         // Declaración interna
         num factor = 0;
         
@@ -16,19 +16,19 @@ program AutoInteligente {
 
     // Rutina simple
     rutina EsquivarObstaculo {
-        salida("Iniciando maniobra de esquive...");
+        salida(Iniciando maniobra de esquive...");
         stop;
         turn(45);
         move(10);
-        turn(-45);
+        turn(45);
     }
 
     // 2. BLOQUE PRINCIPAL
     inicio {
         // Declaración con inicialización (nueva característica)
-        str estado = "Sistema Operativo";
+      str estado = "Sistema Operativo";
         salida(estado);
-
+	
         // Variables declaradas al principio
         num velActual = 80;
         num distSegura = 20;
@@ -60,16 +60,14 @@ program AutoInteligente {
         num distanciaFrenado = 0;
         distanciaFrenado = CalcularFrenado(velActual, 0.8);
         
-        salida("Distancia requerida para frenar:");
+      
         salida(distanciaFrenado);
 
         // Comandos de mapa y navegación
         goto Casa;
         
         // Eventos
-        on event {
-            broadcast("Llegando a destino");
-        }
+      
     }
     end
 }
