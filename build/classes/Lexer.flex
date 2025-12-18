@@ -15,22 +15,18 @@ import java.util.ArrayList;
 %{
     public ArrayList<TError> lexerErrors = new ArrayList<>();
     
-    // --- NUEVO: Bandera para controlar el punto y coma ---
+    // Bandera para controlar el punto y coma
     private boolean seEsperaPuntoYComa = false;
 
-private Symbol token(String lexeme, String lexicalComp, int line, int column, int symCode) {
+    private Symbol token(String lexeme, String lexicalComp, int line, int column, int symCode) {
         
-        // Caso 1: Tokens que finalizan una instrucción
+        // Tokens que finalizan una instrucción
         if (symCode == sym.ID || symCode == sym.NUMBER || symCode == sym.STRING || 
             symCode == sym.RPAREN || symCode == sym.RBRACK || 
             symCode == sym.TRUE || symCode == sym.FALSE || 
-            
-            // --- CORRECCIÓN AQUÍ ---
-            symCode == sym.SALIR ||    // Antes era BREAK
-            symCode == sym.BRAKE ||    // El comando de frenar
-            symCode == sym.STOP  ||    // El comando de parar
-            // -----------------------
-
+            symCode == sym.SALIR ||    
+            symCode == sym.BRAKE ||    
+            symCode == sym.STOP  ||    
             symCode == sym.REGRESA) { 
             
             seEsperaPuntoYComa = true;
@@ -40,7 +36,6 @@ private Symbol token(String lexeme, String lexicalComp, int line, int column, in
         }
 
         Token t = new Token(lexeme, lexicalComp, line + 1, column + 1);
-        // Recuerda usar el constructor de 4 parámetros que arreglamos antes
         return new Symbol(symCode, line + 1, column + 1, t);
     }
 %}
@@ -48,8 +43,6 @@ private Symbol token(String lexeme, String lexicalComp, int line, int column, in
 /* Macros */
 LineTerminator = \r|\n|\r\n
 InputCharacter = [^\r\n]
-
-/* OJO: Quitamos LineTerminator de WhiteSpace para manejarlo manualmente */
 WhiteSpace     = [ \t\f] 
 
 Comment        = "//" {InputCharacter}* {LineTerminator}? | "/*" [^*]* ~"*/"
@@ -57,30 +50,66 @@ Comment        = "//" {InputCharacter}* {LineTerminator}? | "/*" [^*]* ~"*/"
 /* Identificadores y Literales */
 Identifier     = [a-zA-Z_] [a-zA-Z0-9_]*
 NumberLiteral  = [0-9]+ (\.[0-9]+)?
-StringLiteral  = \"([^\\\"]|\\.)*\"
+
+/* --- MACROS DE ERROR (PRIORIDAD) --- */
+InvalidId      = [0-9]+ [a-zA-Z_] [a-zA-Z0-9_]*
+MalformedNum   = [0-9]+ "." [0-9]* "." [0-9.]+
+NumberWithText = [0-9]+ "." [a-zA-Z_]+
 
 %%
 
-/* 1. Comentarios (Ignorar) */
-{Comment}       { /* Ignorar, no afecta al punto y coma */ }
-
-/* 2. Espacios en blanco (Ignorar) */
+/* 1. Comentarios y Espacios */
+{Comment}       { /* Ignorar */ }
 {WhiteSpace}    { /* Ignorar */ }
 
-/* 3. --- NUEVO: Manejo del Salto de Línea para detectar error --- */
+/* 2. Manejo del Salto de Línea (Punto y Coma) */
 {LineTerminator} {
     if (seEsperaPuntoYComa) {
-        // ¡ERROR DETECTADO EN EL LEXER!
         String msg = "Error Léxico: Falta punto y coma ';' al final de la línea.";
         lexerErrors.add(new TError(yyline + 1, yycolumn, msg)); 
-        
-        // Reseteamos para no spamear errores
         seEsperaPuntoYComa = false; 
     }
-    // No retornamos nada, solo consumimos el salto de línea
 }
 
-/* 4. Estructura y Palabras Clave */
+/* 3. MANEJO DE STRINGS Y ERRORES DE COMILLAS */
+
+/* 3. MANEJO DE STRINGS Y ERRORES DE COMILLAS */
+/* --- MANEJO DE STRINGS --- */
+
+// REGLA 1: String Correcto (ESTA DEBE IR PRIMERO)
+\"([^\\\"]|\\.)*\" { 
+    return token(yytext(), "STRING", yyline, yycolumn, sym.STRING); 
+}
+
+// REGLA 2: Borra o comenta la regla que decía [^ \t\r\n\"]+ \"
+// Esa regla es la que causa el error en salida("...")
+
+// REGLA 3: Comilla de apertura sin cierre (Mantenla para detectar errores reales)
+\" [^\"\n\r]* { 
+    lexerErrors.add(new TError(yyline + 1, yycolumn, "Error Léxico: Comillas sin cerrar."));
+    seEsperaPuntoYComa = false; 
+    return token(yytext(), "STRING", yyline, yycolumn, sym.STRING);
+}
+
+
+
+/* 4. REGLAS DE ERROR ESPECÍFICAS */
+{InvalidId} {
+    lexerErrors.add(new TError(yyline + 1, yycolumn, "Error Léxico: Identificador inválido '" + yytext() + "'. No puede iniciar con número."));
+    return token(yytext(), "ERROR", yyline, yycolumn, sym.ERROR);
+}
+
+{MalformedNum} {
+    lexerErrors.add(new TError(yyline + 1, yycolumn, "Error Léxico: Número mal formado '" + yytext() + "'. Demasiados puntos."));
+    return token(yytext(), "ERROR", yyline, yycolumn, sym.ERROR);
+}
+
+{NumberWithText} {
+    lexerErrors.add(new TError(yyline + 1, yycolumn, "Error Léxico: Formato de número inválido '" + yytext() + "'."));
+    return token(yytext(), "ERROR", yyline, yycolumn, sym.ERROR);
+}
+
+/* 5. Estructura y Palabras Clave */
 "program"       { return token(yytext(), "PROGRAM", yyline, yycolumn, sym.PROGRAM); }
 "inicio"        { return token(yytext(), "INICIO", yyline, yycolumn, sym.INICIO); }
 "end"           { return token(yytext(), "END", yyline, yycolumn, sym.END); }
@@ -90,7 +119,7 @@ StringLiteral  = \"([^\\\"]|\\.)*\"
 "salida"        { return token(yytext(), "SALIDA", yyline, yycolumn, sym.SALIDA); }
 "regresa"       { return token(yytext(), "REGRESA", yyline, yycolumn, sym.REGRESA); }
 
-/* Tipos */
+/* Tipos, Control, Vehículo, Sensores */
 "num"           { return token(yytext(), "NUM", yyline, yycolumn, sym.NUM); }
 "bool"          { return token(yytext(), "BOOL", yyline, yycolumn, sym.BOOL); }
 "str"           { return token(yytext(), "STR", yyline, yycolumn, sym.STR); }
@@ -99,16 +128,12 @@ StringLiteral  = \"([^\\\"]|\\.)*\"
 "set"           { return token(yytext(), "SET", yyline, yycolumn, sym.SET); }
 "true"          { return token(yytext(), "TRUE", yyline, yycolumn, sym.TRUE); }
 "false"         { return token(yytext(), "FALSE", yyline, yycolumn, sym.FALSE); }
-
-/* Control */
 "cuando"        { return token(yytext(), "CUANDO", yyline, yycolumn, sym.CUANDO); }
 "sino"          { return token(yytext(), "SINO", yyline, yycolumn, sym.SINO); }
 "mientras"      { return token(yytext(), "MIENTRAS", yyline, yycolumn, sym.MIENTRAS); }
 "loop"          { return token(yytext(), "LOOP", yyline, yycolumn, sym.LOOP); }
 "salir"         { return token(yytext(), "SALIR", yyline, yycolumn, sym.SALIR); }
 "sigue"         { return token(yytext(), "SIGUE", yyline, yycolumn, sym.SIGUE); }
-
-/* Vehículo */
 "move"          { return token(yytext(), "MOVE", yyline, yycolumn, sym.MOVE); }
 "turn"          { return token(yytext(), "TURN", yyline, yycolumn, sym.TURN); }
 "stop"          { return token(yytext(), "STOP", yyline, yycolumn, sym.STOP); }
@@ -117,8 +142,6 @@ StringLiteral  = \"([^\\\"]|\\.)*\"
 "decelerate"    { return token(yytext(), "DECEL", yyline, yycolumn, sym.DECEL); }
 "reverse"       { return token(yytext(), "REVERSE", yyline, yycolumn, sym.REVERSE); }
 "brake"         { return token(yytext(), "BRAKE", yyline, yycolumn, sym.BRAKE); }
-
-/* Sensores y Comms */
 "sensor"        { return token(yytext(), "SENSOR", yyline, yycolumn, sym.SENSOR); }
 "gps"           { return token(yytext(), "GPS", yyline, yycolumn, sym.GPS); }
 "speed"         { return token(yytext(), "SPEED", yyline, yycolumn, sym.SPEED); }
@@ -130,8 +153,6 @@ StringLiteral  = \"([^\\\"]|\\.)*\"
 "event"         { return token(yytext(), "EVENT", yyline, yycolumn, sym.EVENT); }
 "on"            { return token(yytext(), "ON", yyline, yycolumn, sym.ON); }
 "vehicle_id"    { return token(yytext(), "VEHICLE_ID", yyline, yycolumn, sym.VEHICLE_ID); }
-
-/* Navegación */
 "route"         { return token(yytext(), "ROUTE", yyline, yycolumn, sym.ROUTE); }
 "waypoint"      { return token(yytext(), "WAYPOINT", yyline, yycolumn, sym.WAYPOINT); }
 "goto"          { return token(yytext(), "GOTO", yyline, yycolumn, sym.GOTO); }
@@ -139,7 +160,7 @@ StringLiteral  = \"([^\\\"]|\\.)*\"
 "navigate"      { return token(yytext(), "NAVIGATE", yyline, yycolumn, sym.NAVIGATE); }
 "destination"   { return token(yytext(), "DESTINATION", yyline, yycolumn, sym.DESTINATION); }
 
-/* Operadores (Estos resetean la bandera automáticamente en el 'else' del token()) */
+/* Operadores y Puntuación */
 "=="            { return token(yytext(), "EQ", yyline, yycolumn, sym.EQ); }
 "!="            { return token(yytext(), "NEQ", yyline, yycolumn, sym.NEQ); }
 "<="            { return token(yytext(), "LE", yyline, yycolumn, sym.LE); }
@@ -155,48 +176,28 @@ StringLiteral  = \"([^\\\"]|\\.)*\"
 "<"             { return token(yytext(), "LT", yyline, yycolumn, sym.LT); }
 ">"             { return token(yytext(), "GT", yyline, yycolumn, sym.GT); }
 "!"             { return token(yytext(), "NOT", yyline, yycolumn, sym.NOT); }
-
-/* Puntuación */
 ";"             { return token(yytext(), "SEMI", yyline, yycolumn, sym.SEMI); }
 ","             { return token(yytext(), "COMMA", yyline, yycolumn, sym.COMMA); }
-"("             { return token(yytext(), "LPAREN", yyline, yycolumn, sym.LPAREN); }
-")"             { return token(yytext(), "RPAREN", yyline, yycolumn, sym.RPAREN); } // <- Este activa la bandera en el if del token()
-"{"             { seEsperaPuntoYComa = false; return token(yytext(), "LBRACE", yyline, yycolumn, sym.LBRACE); }
-"}"             { seEsperaPuntoYComa = false; return token(yytext(), "RBRACE", yyline, yycolumn, sym.RBRACE); }
 "["             { return token(yytext(), "LBRACK", yyline, yycolumn, sym.LBRACK); }
 "]"             { return token(yytext(), "RBRACK", yyline, yycolumn, sym.RBRACK); }
+"("             { return token(yytext(), "LPAREN", yyline, yycolumn, sym.LPAREN); }
+")"             { return token(yytext(), "RPAREN", yyline, yycolumn, sym.RPAREN); }
+"{"             { seEsperaPuntoYComa = false; return token(yytext(), "LBRACE", yyline, yycolumn, sym.LBRACE); }
+"}"             { seEsperaPuntoYComa = false; return token(yytext(), "RBRACE", yyline, yycolumn, sym.RBRACE); }
 
-/* Dinámicos (Estos activan la bandera) */
+// ------------------------------------------------------------------
+// REGLA DEL PUNTO: Corregida para no causar cascada de errores léxicos
+// ------------------------------------------------------------------
+"."             { return token(yytext(), "POINT", yyline, yycolumn, sym.ERROR); }
+
+/* 6. Dinámicos */
 {NumberLiteral} { return token(yytext(), "NUMBER", yyline, yycolumn, sym.NUMBER); }
-{StringLiteral} { return token(yytext(), "STRING", yyline, yycolumn, sym.STRING); }
 {Identifier}    { return token(yytext(), "ID", yyline, yycolumn, sym.ID); }
 
-/* Errores */
-. {
-    lexerErrors.add(new TError(yyline+1, yycolumn+1, "Error Léxico: Caracter inválido '" + yytext() + "'"));
-    return token(yytext(), "ERROR", yyline, yycolumn, sym.ERROR);
-}
-
-// 1. Cadena VÁLIDA: Se abre y cierra en la misma línea
-\" [^\"\n\r]* \" { 
-    return token(yytext(), "STRING", yyline, yycolumn, sym.STRING); 
-}
-
-// 2. ERROR: Cadena sin cerrar. 
-// IMPORTANTE: El [^\"\n\r\)\;]* impide que el error se coma el ')' y el ';'
-\" [^\"\n\r\)\;]* { 
-    String msg = "Error Léxico: Comillas sin cerrar en esta línea";
-    lexerErrors.add(new TError(yyline + 1, yycolumn, msg));
-    
-    // Devolvemos un STRING para que el Parser crea que la función está completa
-    // y pueda encontrar el ')' y el ';' que dejamos libres.
-    return token(yytext(), "STRING", yyline, yycolumn, sym.STRING);
-}
-
+/* 7. Error Genérico */
 [^] { 
-    // Captura CUALQUIER carácter que no haya coincidido con las reglas de arriba
-    // EXCEPTO espacios y saltos de línea que ya deben estar gestionados
     if (!yytext().trim().isEmpty()) {
         lexerErrors.add(new TError(yyline + 1, yycolumn, "Error Léxico: Caracter inválido '" + yytext() + "'"));
+        return token(yytext(), "ERROR", yyline, yycolumn, sym.ERROR);
     }
 }

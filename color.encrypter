@@ -1,15 +1,12 @@
-program PruebaOrtografia {
-    inicio {
-        // Correcto
-        mientras (true) {
-            
-            // Error de dedo: "sto" en vez de "stop"
-            // El parser pensará que 'sto' es una variable o función, 
-            // dará error de sintaxis, pero el corrector sugerirá "stop".
-            stop; 
-            
-            salir;
-        }
-    }
-    end
+program prueba {
+
+inicio{
+num valor1 = 10;
+str cadena = "hola mundo";
+
+cuando(valor1 == 100){
+salida(cadena);
+}
+}
+end
 }

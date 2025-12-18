@@ -272,8 +272,11 @@ sentencias_bloque_x1 ::=
 sentencia_completa ::= 
       declaracion:d {: RESULT = d; :}
     | sentencia:s   {: RESULT = s; :}
-    // Si algo falla aquí, el parser busca el próximo ';' y se limpia.
-    | error SEMI    {: RESULT = null; :} 
+    | error SEMI    // <-- EL PARARRAYOS GLOBAL
+      {: 
+          parser.errors.add(new TError(0, 0, "Error Sintáctico: Instrucción inválida. Se recuperó en el ';'"));
+          RESULT = null; 
+      :} 
     ;
 
 /* --- DECLARACIONES CORREGIDO (CON VALIDACIÓN DE ARRAYS Y VARIABLES) --- */
@@ -524,29 +527,41 @@ argumentos ::=
 
 /* --- ENTRADA / SALIDA --- */
 e_s ::= 
-      // 1. Caso Correcto
-      SALIDA LPAREN expresion:e RPAREN SEMI 
-      {: ASTNode n = new ASTNode("Salida"); n.addChild(e); RESULT = n; :}
-      
-    // 2. Error: Paréntesis vacíos (Ahora con ubicación real)
-    // Agregamos ':s' a SALIDA para capturar su posición
-    | SALIDA:s LPAREN RPAREN SEMI
+      // 1. CASO CORRECTO: salida("hola"); o salida(variable);
+      SALIDA:s LPAREN expresion:e RPAREN SEMI  
       {: 
-         // Usamos sleft (línea) y sright (columna) en vez de 0,0
-         parser.errors.add(new TError(sleft, sright, 
-             "Error Sintáctico: La instrucción 'salida' requiere un mensaje o valor dentro de los paréntesis."));
-         RESULT = null;
+          ASTNode n = new ASTNode("Salida"); 
+          n.addChild(e); 
+          RESULT = n; 
       :}
-      
-    // 3. Error: Contenido mal formado
-    | SALIDA:s LPAREN error RPAREN SEMI
+
+      // 2. CASO VACÍO: salida();
+      | SALIDA:s LPAREN RPAREN SEMI
       {: 
-         parser.errors.add(new TError(sleft, sright, 
-             "Error en salida: Verifique comillas o argumentos"));
-         RESULT = null;
+          RESULT = new ASTNode("Salida_Vacia"); 
+      :}
+
+      /* ============================================================
+         SINCRONIZACIÓN (Para detener la cascada de errores)
+         ============================================================ */
+
+      // 3. Si hay un error de comillas o contenido dentro del paréntesis
+      // Esto atrapa el token STRING "empaquetado" que envía el Lexer
+      | SALIDA:s LPAREN error RPAREN SEMI
+      {:
+          parser.errors.add(new TError(sleft, sright, 
+              "Error Sintáctico en 'salida': El contenido entre paréntesis es inválido."));
+          RESULT = null;
+      :}
+
+      // 4. Si falta un paréntesis o el error es más grave, saltamos hasta el ';'
+      | SALIDA:s error SEMI
+      {: 
+          parser.errors.add(new TError(sleft, sright, 
+              "Error Sintáctico: Instrucción 'salida' mal formada. Se recuperó en ';'"));
+          RESULT = null;
       :}
     ;
-
 /* --- ACCIONES COMPLETO (CON TODAS LAS VALIDACIONES) --- */
 accion ::= 
     /* ==================== 1. MOVIMIENTOS (HÍBRIDOS) ==================== */
