@@ -1,0 +1,44 @@
+program EscanerDeTerreno {
+    
+    // Método para procesar datos (simulado)
+    metodo Analizar(num valor ) {
+        num umbral = 50;
+        cuando ( valor> umbral){
+            salida("Valor alto detectado");
+        }
+    }
+
+    inicio {
+        // 1. Declaración de arreglo
+        num lecturas[5];
+        num contador = 0;
+        num total = 5;
+
+        salida ("Iniciando escaneo...";
+
+        // 2. Llenado del arreglo usando un bucle
+        mientras (contador< total) {
+            // Simulamos leer un sensor y guardarlo
+            // Nota: Aquí usamos la sintaxis de sensor directa que arreglamos
+            lecturas[contador] = sensor[distance];
+            
+            wait(1);
+            contador = contador + 1;
+        }
+
+        // 3. Lectura del arreglo
+        contador = 0;
+        loop (5) {
+            // Acceso al arreglo en una expresión
+            num valorActual = lecturas[contador];
+            
+            salida(valorActual);
+            Analizar(valorActual);
+            
+            contador = contador + 1;
+        }
+        
+        stop;
+    }
+    end
+}

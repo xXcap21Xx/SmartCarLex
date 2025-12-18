@@ -1,0 +1,48 @@
+// 1. Declaraciones (usamos 'var' para todo)
+var velocidadMax = 80;
+var distanciaSegura = 15;
+var estado = "Sistema Iniciado";
+
+// 2. Comunicación (antes salida)
+broadcast(estado);
+
+// 3. Lectura de sensores y condiciones
+// Nota: 'obstacle' y 'distance' son palabras reservadas del sistema
+var hayObstaculo = sensor(obstacle); 
+var distActual = sensor(distance);
+
+// 4. Lógica de Control
+cuando (hayObstaculo == true) {
+    brake();
+    broadcast("PELIGRO: Obstaculo detectado");
+} sino {
+    // Condicional anidado
+    cuando (distActual < distanciaSegura) {
+        decelerate(20);
+        broadcast("Precaucion: Acercandose");
+    } sino {
+        accelerate(10);
+        move(50);
+        broadcast("Ruta despejada");
+    }
+}
+
+// 5. Bucles
+mientras (speed < 100) {
+    accelerate(5);
+}
+
+loop (3) {
+    turn(90);
+    wait(1);
+}
+
+// 6. Rutinas (Funciones)
+rutina reportarEstado() {
+    var s = sensor(gps);
+    broadcast("Posicion actual:");
+    broadcast(s);
+}
+
+// Llamada a la rutina
+reportarEstado();

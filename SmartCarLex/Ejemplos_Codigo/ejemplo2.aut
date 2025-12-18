@@ -1,0 +1,24 @@
+program DemoSimple {
+    inicio {
+        // 1. Declaración de variables (usando tipos explícitos)
+        num velocidad = 50;
+        bool activo = true;
+
+        // 2. Acción básica
+        move(velocidad);
+
+        // 3. Lectura de sensor y decisión
+        cuando (sensor(obstacle) == true) {
+            // Si hay obstáculo, frenar y avisar
+            brake;
+            salida("Peligro detectado");
+        } sino {
+            // Si no, girar y seguir
+            turn(90);
+            accelerate(10);
+        }
+        
+        // 4. Finalizar
+        stop;
+    }
+}
